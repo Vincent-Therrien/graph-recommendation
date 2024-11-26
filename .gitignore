@@ -1,3 +1,9 @@
+australian_user*
+item_relations.csv
+review_relations.csv
+user_nodes.csv
+item_nodes.csv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
