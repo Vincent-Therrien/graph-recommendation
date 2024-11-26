@@ -64,4 +64,10 @@ JSON formatés de la manière suivante :
 
 ### Pré-traitement des données
 
-Le script `preprocess.py` traite les fichiers
+Le script `preprocess.py` traite les fichiers bruts présentés à la section précédente pour obtenir
+quatre fichiers CSV :
+
+- `user_nodes.csv` : Noeuds d'identifiants de tous les utilisateurs.
+- `item_nodes.csv` : Noeuds d'identifiants de tous les items (c-à-d des jeux).
+- `review_relations.csv` : Relations de critiques des utilisateurs envers les jeux.
+- `item_relations.csv` : Relations entre les joueurs et le temps de jeu.
