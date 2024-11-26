@@ -5,9 +5,10 @@
 import json
 import ast
 
-REVIEW_FILE = "australian_user_reviews.json/australian_user_reviews.json"
-ITEM_FILE = "australian_users_items.json/australian_users_items.json"
+REVIEW_FILE = "australian_user_reviews.json"
+ITEM_FILE = "australian_users_items.json"
 
+# Create a set of user ID's who left reviews, and game ID's which were reviewed
 print("Retrieve nodes.")
 users = set()
 items = set()
@@ -19,16 +20,16 @@ with open(REVIEW_FILE, "r", encoding="utf8") as input_file:
             items.add("i" + i["item_id"])
 
 with open("user_nodes.csv", "w") as user_file:
-    user_file.write("id:ID\n")
+    user_file.write("id:ID,:LABEL\n")
     for user in users:
-        user_file.write(f"{user}\n")
+        user_file.write(f"{user},User\n")
 
 with open("item_nodes.csv", "w") as item_file:
-    item_file.write("id:ID\n")
+    item_file.write("id:ID,:LABEL\n")
     for item in items:
-        item_file.write(f"{item}\n")
+        item_file.write(f"{item},GameID\n")
 
-
+# For each review, connect the user to the game with TRUE/FALSE recommendation relationships
 print("Retrieve review relations between nodes.")
 with (
         open(REVIEW_FILE, "r", encoding="utf8") as input_file,
@@ -43,7 +44,7 @@ with (
             recommend = i["recommend"]
             output_file.write(f"{user},{item},{recommend}\n")
 
-
+# Connect each user to their games with total_playtime relationships
 print("Retrieve item relations between nodes.")
 with (
         open(ITEM_FILE, "r", encoding="utf8") as input_file,

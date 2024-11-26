@@ -1,4 +1,4 @@
-# graph-recommendation
+# Graph-recommendation
 
 Système de recommandation de données basé sur des graphes.
 
@@ -16,9 +16,16 @@ Steam.
 Le jeux de données contient un fichier de commentaires des utilisateurs et un ficheir d'objets
 détenus par les utilisateurs.
 
-Téléchargez le fichier `Version 1: Review Data` à l'adresse
-https://datarepo.eng.ucsd.edu/mcauley_group/data/steam/australian_user_reviews.json.gz et
-décompressez-le. Le fichier contient des critiques de jeux des utilisateurs formatées de
+Téléchargez le fichier `Version 1: Review Data` à l'adresse suivante et décompressez-le:  
+
+**COMMENT FAIT SUR WINDOWS AVEC DES COMMANDES *copier-coller*?**
+
+```
+wget https://datarepo.eng.ucsd.edu/mcauley_group/data/steam/australian_user_reviews.json.gz
+gunzip australian_user_reviews.json.gz
+```
+
+Le fichier contient des critiques de jeux des utilisateurs formatées de
 la manière suivante :
 
 ```
@@ -39,9 +46,15 @@ la manière suivante :
 }
 ```
 
-Téléchargez ensuite le fichier `Version 1: User and Item Data` à l'adresse
-https://datarepo.eng.ucsd.edu/mcauley_group/data/steam/australian_users_items.json.gz et
-décompressez-le. Le fichier contient le catalogue de jeux des utilisateurs sous la forme d'objets
+Téléchargez ensuite le fichier `Version 1: User and Item Data` à l'adresse suivante et décompressez-le.  
+
+**COMMENT FAIT SUR WINDOWS AVEC DES COMMANDES *copier-coller*?**
+```
+wget https://datarepo.eng.ucsd.edu/mcauley_group/data/steam/australian_users_items.json.gz
+gunzip australian_users_items.json.gz
+```
+
+Le fichier contient le catalogue de jeux des utilisateurs sous la forme d'objets
 JSON formatés de la manière suivante :
 
 ```
@@ -64,10 +77,20 @@ JSON formatés de la manière suivante :
 
 ### Pré-traitement des données
 
-Le script `preprocess.py` traite les fichiers bruts présentés à la section précédente pour obtenir
-quatre fichiers CSV :
+```
+python preprocess.py
+```
+
+Le script `preprocess.py` traite les fichiers bruts présentés à la section précédente pour obtenir quatre fichiers CSV :
 
 - `user_nodes.csv` : Noeuds d'identifiants de tous les utilisateurs.
 - `item_nodes.csv` : Noeuds d'identifiants de tous les items (c-à-d des jeux).
 - `review_relations.csv` : Relations de critiques des utilisateurs envers les jeux.
 - `item_relations.csv` : Relations entre les joueurs et le temps de jeu.
+
+## Importation des noeuds, relations
+
+```
+
+
+```
