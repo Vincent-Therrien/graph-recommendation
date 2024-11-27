@@ -90,7 +90,13 @@ Le script `preprocess.py` traite les fichiers bruts présentés à la section pr
 
 ## Importation des noeuds, relations
 
-```
+Ouvrir neo4j desktop, crée un nouveau projet si desiré, et ensuite un nouveau database (DBMS). Debute (start) ce DBMS, et un fois que ca roule, choisir "Terminal" du "Open" drop-down menu. Ca va ouvrir un terminal neo4j dans le directoire du DBMS (le mien est C:/Users/david/.Neo4jDesktop/relate-data/dbmss/dbms-005f3d71-44eb-4db3-960e-6d9f06ff9713), qui contient un dossier "import". Veulliez copier les 4 fichiers produits par preprocess.py dans ce dossier.  
 
+En plus, dans le fichier conf/neo4j.conf, veulliez assurer que la ligne 22 <server.directories.import=import> n'est pas masquée.  
+
+Une fois c'est fait, arreter le DBMS dans neo4j desktop et lancer le commande suivant dans le terminal neo4j dans le directoire du DBMS: 
 
 ```
+bin\neo4j-admin database import full --nodes=import/user_nodes.csv --nodes=import/item_nodes.csv --relationships=import/review_relations.csv --relationships=import/item_relations.csv --overwrite-destination --skip-bad-relationships --skip-duplicate-nodes
+```
+Après, le DBMS peut être relancé et ouvert par neo4j browser
