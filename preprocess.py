@@ -40,10 +40,10 @@ with (
     for line in input_file:
         review = json.loads(json.dumps(ast.literal_eval(line)))
         #if f"u{review["user_id"]}" in users:
-        user = f"u{review["user_id"]}"
+        user = f"u{review['user_id']}"
         for i in review["reviews"]:
                 #if f"i{i["item_id"]}" in items:
-                item = f"i{i["item_id"]}"
+                item = f"i{i['item_id']}"
                 recommend = i["recommend"]
                 output_file.write(f"{user},{item},RECOMMENDS,{recommend}\n")
 
@@ -57,10 +57,10 @@ with (
     output_file.write(f":START_ID,:END_ID,:TYPE,playtime:int\n")
     for line in input_file:
         catalog = json.loads(json.dumps(ast.literal_eval(line)))
-        if f"u{catalog["user_id"]}" in users:
-            user = f"u{catalog["user_id"]}"
+        if f"u{catalog['user_id']}" in users:
+            user = f"u{catalog['user_id']}"
             for i in catalog["items"]:
-                if f"i{i["item_id"]}" in items:
-                    item = f"i{i["item_id"]}"
+                if f"i{i['item_id']}" in items:
+                    item = f"i{i['item_id']}"
                     playtime = i["playtime_forever"]
                     output_file.write(f"{user},{item},PLAYED,{playtime}\n")

@@ -1,5 +1,9 @@
 # Graph-recommendation
 
+Auteurs :
+- David Ross (ROSD08058900)
+- Vincent Therrien (THEV17129807)
+
 Système de recommandation de données basé sur des graphes.
 
 
@@ -16,17 +20,16 @@ Steam.
 Le jeux de données contient un fichier de commentaires des utilisateurs et un ficheir d'objets
 détenus par les utilisateurs.
 
-Téléchargez le fichier `Version 1: Review Data` à l'adresse suivante et décompressez-le:  
-
-**COMMENT FAIT SUR WINDOWS AVEC DES COMMANDES *copier-coller*?**
+Téléchargez le fichier `Version 1: Review Data` à l'adresse
+`https://datarepo.eng.ucsd.edu/mcauley_group/data/steam/australian_user_reviews.json.gz` avec `wget`
+et décompressez-le avec `gunzip`, comme le montre la cellule suivante :
 
 ```
 wget https://datarepo.eng.ucsd.edu/mcauley_group/data/steam/australian_user_reviews.json.gz
 gunzip australian_user_reviews.json.gz
 ```
 
-Le fichier contient des critiques de jeux des utilisateurs formatées de
-la manière suivante :
+Le fichier contient des critiques de jeux des utilisateurs formatées de la manière suivante :
 
 ```
 {
@@ -46,9 +49,10 @@ la manière suivante :
 }
 ```
 
-Téléchargez ensuite le fichier `Version 1: User and Item Data` à l'adresse suivante et décompressez-le.  
+Téléchargez ensuite le fichier `Version 1: User and Item Data` à l'adresse
+`https://datarepo.eng.ucsd.edu/mcauley_group/data/steam/australian_users_items.json.gz` avec `wget`
+et décompressez-le avec `gunzip` :
 
-**COMMENT FAIT SUR WINDOWS AVEC DES COMMANDES *copier-coller*?**
 ```
 wget https://datarepo.eng.ucsd.edu/mcauley_group/data/steam/australian_users_items.json.gz
 gunzip australian_users_items.json.gz
@@ -77,26 +81,43 @@ JSON formatés de la manière suivante :
 
 ### Pré-traitement des données
 
+Cette étape vise à transformer les données contenue dans les fichiers JSON en un format CSV
+utilisable par `Neo4j`. La commande suivante permet de pré-traiter les données :
+
 ```
-python preprocess.py
+python3 preprocess.py  # Linux
+py preprocess.py  # Windows
 ```
 
-Le script `preprocess.py` traite les fichiers bruts présentés à la section précédente pour obtenir quatre fichiers CSV :
+Le script `preprocess.py` génère quatre fichiers CSV à partir des données originale :
 
 - `user_nodes.csv` : Noeuds d'identifiants de tous les utilisateurs.
 - `item_nodes.csv` : Noeuds d'identifiants de tous les items (c-à-d des jeux).
 - `review_relations.csv` : Relations de critiques des utilisateurs envers les jeux.
 - `item_relations.csv` : Relations entre les joueurs et le temps de jeu.
 
-## Importation des noeuds, relations
 
-Ouvrir neo4j desktop, crée un nouveau projet si desiré, et ensuite un nouveau database (DBMS). Debute (start) ce DBMS, et un fois que ca roule, choisir "Terminal" du "Open" drop-down menu. Ca va ouvrir un terminal neo4j dans le directoire du DBMS (le mien est C:/Users/david/.Neo4jDesktop/relate-data/dbmss/dbms-005f3d71-44eb-4db3-960e-6d9f06ff9713), qui contient un dossier "import". Veulliez copier les 4 fichiers produits par preprocess.py dans ce dossier.  
+## Importation des noeuds et relations dans Neo4j
 
-En plus, dans le fichier conf/neo4j.conf, veulliez assurer que la ligne 22 <server.directories.import=import> n'est pas masquée.  
+Cette section présente comment importer les fichiers générés dans la section précédente dans une
+base de données `Neo4j`. Il faut effectuer les étapes suivantes :
 
-Une fois c'est fait, arreter le DBMS dans neo4j desktop et lancer le commande suivant dans le terminal neo4j dans le directoire du DBMS: 
-
-```
-bin\neo4j-admin database import full --nodes=import/user_nodes.csv --nodes=import/item_nodes.csv --relationships=import/review_relations.csv --relationships=import/item_relations.csv --overwrite-destination --skip-bad-relationships --skip-duplicate-nodes
-```
-Après, le DBMS peut être relancé et ouvert par neo4j browser
+- Ouvrir `Neo4j` desktop
+- Créer un nouveau projet, puis créer une nouvelle database (DBMS) en cliquant sur `
+- Lancer (start) la DBMS
+- Une fois la DBMS en marche, choisir "Terminal" dans le menu déroulant "Open". Cette opération
+  ouvre un terminal `Neo4j` dans le répertoire de la DBMS
+  (par exemple, `C:/Users/david/.Neo4jDesktop/relate-data/dbmss/dbms-005f3d71-44eb-4db3-960e-6d9f06ff9713`)
+  qui contient un dossier "import". Copier les 4 fichiers produits par preprocess.py dans ce
+  dossier. Par exemple, sous Linux, en supposant que `<import>` représente le répertoire
+  d'importation de la DBMS, exécuter les commandes :
+  - `cp user_nodes.csv <import>`
+  - `cp item_nodes.csv <import>`
+  - `cp review_relations.csv <import>`
+  - `cp item_relations.csv <import>`
+- Vérifier dans le fichier `conf/neo4j.conf` (situé dans le répertoire de la DBMS) que la ligne 22
+  (`<server.directories.import=import>`) n'est pas masquée.
+- Arrêter la DBMS dans `Neo4j desktop` et lancer le commande suivante dans le terminal `Neo4j` dans
+  le directoire de la DBMS :
+  `bin\neo4j-admin database import full --nodes=import/user_nodes.csv --nodes=import/item_nodes.csv --relationships=import/review_relations.csv --relationships=import/item_relations.csv --overwrite-destination --skip-bad-relationships --skip-duplicate-nodes`
+- Relancer la DBMS. Il est maintenant possible d'interagir avec le graphe dans `Neo4j browser`.
