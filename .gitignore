@@ -1,8 +1,11 @@
 australian_user*
+steam_games.json
 item_relations.csv
 review_relations.csv
 user_nodes.csv
 item_nodes.csv
+item_metadata.csv
+relate.project.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

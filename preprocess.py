@@ -2,11 +2,29 @@
     Data preprocessing script. Formats the raw JSON into compact CSV format.
 """
 
+# Add item count for each user
+#   As categotical nodes?
+
+# Add date posted, helpful
+#   As review property
+
+# From metadata:
+#   Add titles for games
+#   Add release dates. As Nodes? By year?
+#   Publisher nodes
+#   Genre nodes
+#   Sentiment nodes
+#   Tags
+#   Specs
+#   Price
+#   Metascore
+
 import json
 import ast
 
 REVIEW_FILE = "australian_user_reviews.json"
 ITEM_FILE = "australian_users_items.json"
+META_FILE = "steam_games.json"
 
 # Create a set of unique user ID's who left reviews, and unique game ID's which were reviewed
 print("Retrieve nodes.")
@@ -19,10 +37,15 @@ with open(REVIEW_FILE, "r", encoding="utf8") as input_file:
         for i in review["reviews"]:
             items.add("i" + i["item_id"])
 
-with open("user_nodes.csv", "w") as user_file:
-    user_file.write("id:ID,:LABEL\n")
-    for user in users:
-        user_file.write(f"{user},UserID\n")
+with (
+        open(ITEM_FILE, "r", encoding="utf8") as input_file,
+        open("user_nodes.csv", "w") as user_file
+    ):
+    user_file.write("id:ID,:LABEL,games_owned:int\n")
+    for line in input_file:
+        user = json.loads(json.dumps(ast.literal_eval(line)))
+        if f"u{user['user_id']}" in users:
+            user_file.write(f"u{user['user_id']},UserID,{user['items_count']}\n")
 
 with open("item_nodes.csv", "w") as item_file:
     item_file.write("id:ID,:LABEL\n")
@@ -36,16 +59,16 @@ with (
         open("review_relations.csv", "w") as output_file
     ):
     #output_file.write(f":START_ID,:END_ID,:TYPE,recommends:bool\n") ***neo4j ne comprend pas nativement le type "bool"
-    output_file.write(f":START_ID,:END_ID,:TYPE,recommends\n")
+    output_file.write(f":START_ID,:END_ID,:TYPE,recommends,date_posted,helpfulness\n")
     for line in input_file:
         review = json.loads(json.dumps(ast.literal_eval(line)))
-        #if f"u{review["user_id"]}" in users:
         user = f"u{review['user_id']}"
         for i in review["reviews"]:
-                #if f"i{i["item_id"]}" in items:
                 item = f"i{i['item_id']}"
                 recommend = i["recommend"]
-                output_file.write(f"{user},{item},RECOMMENDS,{recommend}\n")
+                date = i["posted"]
+                helpful = i["helpful"]
+                output_file.write(f"{user},{item},RECOMMENDS,{recommend},{date},{helpful}\n")
 
 # Connect each user to the games they played with total_playtime relationships
 # Only if user AND game are found in the reviews file
@@ -64,3 +87,28 @@ with (
                     item = f"i{i['item_id']}"
                     playtime = i["playtime_forever"]
                     output_file.write(f"{user},{item},PLAYED,{playtime}\n")
+
+print("Retrieve item metadata.")
+with (
+        open(META_FILE, "r", encoding="utf8") as input_file,
+        open("item_metadata.csv", "w") as output_file
+    ):
+    output_file.write(f"gameID,title,publisher,release,genres,tags,specs,sentiment,metascore:int,price:float\n")
+    for line in input_file:
+        catalog = json.loads(json.dumps(ast.literal_eval(line)))
+        if f"i{catalog['id']}" in items:
+            item = f"i{i['id']}"
+            title = i["title"]
+            publisher = i["publisher"]
+            date = i["release_date"]
+            genres = i["genres"]
+            tags = i["tags"]
+            specs = i["specs"]
+            sentiment = i["sentiment"]
+            score = i["metascore"]
+            price = i["price"]
+            output_file.write(f"{item},{title},{publisher},{date},{genres},{tags},{specs},{sentiment},{score},{price}\n")
+
+
+
+

@@ -66,7 +66,7 @@ JSON formatés de la manière suivante :
     'user_id': <ID>,
     'items_count': <count>,
     'steam_id': <Steam ID>,
-    'user_url': URL,
+    'user_url': <URL>,
     'items': [
         {
             'item_id': <ID>,
@@ -78,6 +78,36 @@ JSON formatés de la manière suivante :
 }
 ```
 
+Téléchargez ensuite le fichier `Version 2: Item metadata` à l'adresse
+`https://cseweb.ucsd.edu/~wckang/steam_games.json.gz` avec `wget`
+et décompressez-le avec `gunzip` :
+
+```
+wget https://cseweb.ucsd.edu/~wckang/steam_games.json.gz
+gunzip steam_games.json.gz
+```
+
+Le fichier contient les metadonnées des jeux sous la forme d'objets JSON formatés de la manière suivante :
+
+```
+{
+    'publisher': <name>, 
+    'genres': [<genres>], 
+    'app_name': <name>, 
+    'sentiment': <rating>, 
+    'title': <title>, 
+    'url': <URL>, 
+    'release_date': <date>, 
+    'tags': [<tags>], 
+    'reviews_url': <URL>, 
+    'specs': [<specifications>], 
+    'price': <price>, 
+    'metascore': <n>, 
+    'early_access': <True / False>, 
+    'id': <ID>, 
+    'developer': <name>
+}
+```
 
 ### Pré-traitement des données
 
