@@ -91,24 +91,24 @@ with (
 print("Retrieve item metadata.")
 with (
         open(META_FILE, "r", encoding="utf8") as input_file,
-        open("item_metadata.csv", "w") as output_file
+        open("item_metadata.csv", "w", encoding="utf8") as output_file
     ):
     output_file.write(f"gameID,title,publisher,release,genres,tags,specs,sentiment,metascore:int,price:float\n")
     for line in input_file:
-        catalog = json.loads(json.dumps(ast.literal_eval(line)))
-        if f"i{catalog['id']}" in items:
+        i = json.loads(json.dumps(ast.literal_eval(line)))
+        if "id" not in i:
+            continue
+        if f"i{i['id']}" in items:
             item = f"i{i['id']}"
-            title = i["title"]
-            publisher = i["publisher"]
-            date = i["release_date"]
-            genres = i["genres"]
-            tags = i["tags"]
-            specs = i["specs"]
-            sentiment = i["sentiment"]
-            score = i["metascore"]
-            price = i["price"]
+            title = i.get("title", "NA")
+            publisher = i.get("publisher", "NA")
+            date = i.get("release_date", "NA")
+            genres = i.get("genres", "NA")
+            genres = str(genres)[1:-1].replace(",", "|")
+            tags = i.get("tags", "NA")
+            tags = str(tags)[1:-1].replace(",", "|")
+            specs = i.get("specs", "NA")
+            sentiment = i.get("sentiment", "NA")
+            score = i.get("metascore", "NA")
+            price = i.get("price", "NA")
             output_file.write(f"{item},{title},{publisher},{date},{genres},{tags},{specs},{sentiment},{score},{price}\n")
-
-
-
-
