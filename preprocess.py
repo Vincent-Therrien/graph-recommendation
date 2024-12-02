@@ -67,7 +67,9 @@ with (
                 item = f"i{i['item_id']}"
                 recommend = i["recommend"]
                 date = i["posted"]
+                date = str(date)[0:-1].replace(",", "")
                 helpful = i["helpful"]
+                helpful = str(helpful).replace(",", "")
                 output_file.write(f"{user},{item},RECOMMENDS,{recommend},{date},{helpful}\n")
 
 # Connect each user to the games they played with total_playtime relationships
@@ -93,22 +95,28 @@ with (
         open(META_FILE, "r", encoding="utf8") as input_file,
         open("item_metadata.csv", "w", encoding="utf8") as output_file
     ):
-    output_file.write(f"gameID,title,publisher,release,genres,tags,specs,sentiment,metascore:int,price:float\n")
+    output_file.write(f"GameID|title|publisher|release|genres|tags|specs|sentiment|metascore:int|price:float\n")
     for line in input_file:
         i = json.loads(json.dumps(ast.literal_eval(line)))
         if "id" not in i:
             continue
         if f"i{i['id']}" in items:
             item = f"i{i['id']}"
-            title = i.get("title", "NA")
-            publisher = i.get("publisher", "NA")
-            date = i.get("release_date", "NA")
-            genres = i.get("genres", "NA")
-            genres = str(genres)[1:-1].replace(",", "|")
-            tags = i.get("tags", "NA")
-            tags = str(tags)[1:-1].replace(",", "|")
-            specs = i.get("specs", "NA")
-            sentiment = i.get("sentiment", "NA")
-            score = i.get("metascore", "NA")
-            price = i.get("price", "NA")
-            output_file.write(f"{item},{title},{publisher},{date},{genres},{tags},{specs},{sentiment},{score},{price}\n")
+            title = i.get("title", "null")
+            title = str(title).replace("&amp;", "&")
+            publisher = i.get("publisher", "null")
+            publisher = str(publisher).replace(", ", ",").replace(",Inc.", " Inc.")
+            date = i.get("release_date", "null")
+            genres = i.get("genres", "null")
+            #genres = str(genres)[1:-1].replace(", ", "|").replace("'", "").replace('"', "")
+            genres = str(genres)[1:-1].replace("'", "").replace('"', "").replace("&amp;", "&").replace(", ", ",")
+            tags = i.get("tags", "null")
+            #tags = str(tags)[1:-1].replace(", ", "|").replace("'", "").replace('"', "")
+            tags = str(tags)[1:-1].replace("'", "").replace('"', "").replace(", ", ",")
+            specs = i.get("specs", "null")
+            #specs = str(specs)[1:-1].replace(", ", "|").replace("'", "").replace('"', "")
+            specs = str(specs)[1:-1].replace("'", "").replace('"', "").replace(", ", ",")
+            sentiment = i.get("sentiment", "null")
+            score = i.get("metascore", "null")
+            price = i.get("price", "null")
+            output_file.write(f"{item}|{title}|{publisher}|{date}|{genres}|{tags}|{specs}|{sentiment}|{score}|{price}\n")
