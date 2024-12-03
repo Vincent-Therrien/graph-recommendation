@@ -95,28 +95,30 @@ with (
         open(META_FILE, "r", encoding="utf8") as input_file,
         open("item_metadata.csv", "w", encoding="utf8") as output_file
     ):
-    output_file.write(f"GameID|title|publisher|release|genres|tags|specs|sentiment|metascore:int|price:float\n")
+    output_file.write(f"GameID|title|publisher|release|genres|tags|specs|sentiment|metascore|price\n")
     for line in input_file:
         i = json.loads(json.dumps(ast.literal_eval(line)))
         if "id" not in i:
             continue
         if f"i{i['id']}" in items:
             item = f"i{i['id']}"
-            title = i.get("title", "null")
+            title = i.get("title", "")
             title = str(title).replace("&amp;", "&")
-            publisher = i.get("publisher", "null")
+            publisher = i.get("publisher", "")
             publisher = str(publisher).replace(", ", ",").replace(",Inc.", " Inc.")
-            date = i.get("release_date", "null")
-            genres = i.get("genres", "null")
-            #genres = str(genres)[1:-1].replace(", ", "|").replace("'", "").replace('"', "")
+            date = i.get("release_date", "")
+            if len(date) == 8:
+                date = f'{date[-4:]}-{date[0:3]}'
+            genres = i.get("genres", "")
             genres = str(genres)[1:-1].replace("'", "").replace('"', "").replace("&amp;", "&").replace(", ", ",")
-            tags = i.get("tags", "null")
-            #tags = str(tags)[1:-1].replace(", ", "|").replace("'", "").replace('"', "")
+            tags = i.get("tags", "")
             tags = str(tags)[1:-1].replace("'", "").replace('"', "").replace(", ", ",")
-            specs = i.get("specs", "null")
-            #specs = str(specs)[1:-1].replace(", ", "|").replace("'", "").replace('"', "")
+            specs = i.get("specs", "")
             specs = str(specs)[1:-1].replace("'", "").replace('"', "").replace(", ", ",")
-            sentiment = i.get("sentiment", "null")
-            score = i.get("metascore", "null")
-            price = i.get("price", "null")
+            sentiment = i.get("sentiment", "")
+            score = i.get("metascore", "")
+            score = str(score).replace("NA", "")
+            price = i.get("price", "")
+            if any(val in str(price) for val in ["Free", "Demo", "Install", "Third-party"]):
+                price = 0.00
             output_file.write(f"{item}|{title}|{publisher}|{date}|{genres}|{tags}|{specs}|{sentiment}|{score}|{price}\n")

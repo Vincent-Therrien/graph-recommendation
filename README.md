@@ -9,27 +9,26 @@ Système de recommandation de données basé sur des graphes.
 
 ## Données
 
-L'ensemble de données choisi pour ce projet est le `Steam Video Game and Bundle Data` accessible à
-l'adresse https://cseweb.ucsd.edu/~jmcauley/datasets.html#steam_data. Nous utilisons la version 1.
-Ces données contiennent des commentaires de joueurs australiens sur des jeux vidéos du distributeur
-Steam.
+L'ensemble de données choisi pour ce projet est le `Steam Video Game and Bundle Data` accessible à l'adresse https://cseweb.ucsd.edu/~jmcauley/datasets.html#steam_data. Nous utilisons la version 1 (et les métadonnées de la version 2). Ces données contiennent des commentaires de joueurs australiens sur des jeux vidéos du distributeur Steam.
 
 
 ### Installation des données
 
-Le jeux de données contient un fichier de commentaires des utilisateurs et un ficheir d'objets
-détenus par les utilisateurs.
+Le jeux de données contient un fichier de commentaires des utilisateurs, un fichier d'objets (des jeux) détenus par les utilisateurs, et un fichier des métadonnées des jeux.
 
-Téléchargez le fichier `Version 1: Review Data` à l'adresse
-`https://datarepo.eng.ucsd.edu/mcauley_group/data/steam/australian_user_reviews.json.gz` avec `wget`
-et décompressez-le avec `gunzip`, comme le montre la cellule suivante :
+Dans un dossier vide, téléchargez les fichiers avec `wget` et décompressez-les avec `gunzip`, comme le montre la cellule suivante :
 
 ```
+# `Version 1: Review Data`
 wget https://datarepo.eng.ucsd.edu/mcauley_group/data/steam/australian_user_reviews.json.gz
-gunzip australian_user_reviews.json.gz
+# `Version 1: User and Item Data`
+wget https://datarepo.eng.ucsd.edu/mcauley_group/data/steam/australian_users_items.json.gz
+# `Version 2: Item metadata`
+wget https://cseweb.ucsd.edu/~wckang/steam_games.json.gz
+gunzip *.json.gz
 ```
 
-Le fichier contient des critiques de jeux des utilisateurs formatées de la manière suivante :
+Le fichier `Version 1: Review Data` contient des critiques de jeux des utilisateurs formatées de la manière suivante :
 
 ```
 {
@@ -49,17 +48,7 @@ Le fichier contient des critiques de jeux des utilisateurs formatées de la mani
 }
 ```
 
-Téléchargez ensuite le fichier `Version 1: User and Item Data` à l'adresse
-`https://datarepo.eng.ucsd.edu/mcauley_group/data/steam/australian_users_items.json.gz` avec `wget`
-et décompressez-le avec `gunzip` :
-
-```
-wget https://datarepo.eng.ucsd.edu/mcauley_group/data/steam/australian_users_items.json.gz
-gunzip australian_users_items.json.gz
-```
-
-Le fichier contient le catalogue de jeux des utilisateurs sous la forme d'objets
-JSON formatés de la manière suivante :
+Le fichier `Version 1: User and Item Data` contient le catalogue de jeux des utilisateurs sous la forme d'objets JSON formatés de la manière suivante :
 
 ```
 {
@@ -78,16 +67,7 @@ JSON formatés de la manière suivante :
 }
 ```
 
-Téléchargez ensuite le fichier `Version 2: Item metadata` à l'adresse
-`https://cseweb.ucsd.edu/~wckang/steam_games.json.gz` avec `wget`
-et décompressez-le avec `gunzip` :
-
-```
-wget https://cseweb.ucsd.edu/~wckang/steam_games.json.gz
-gunzip steam_games.json.gz
-```
-
-Le fichier contient les metadonnées des jeux sous la forme d'objets JSON formatés de la manière suivante :
+Le fichier `Version 2: Item metadata` contient les métadonnées des jeux sous la forme d'objets JSON formatés de la manière suivante :
 
 ```
 {
@@ -109,6 +89,7 @@ Le fichier contient les metadonnées des jeux sous la forme d'objets JSON format
 }
 ```
 
+
 ### Pré-traitement des données
 
 Cette étape vise à transformer les données contenue dans les fichiers JSON en un format CSV
@@ -125,7 +106,9 @@ Le script `preprocess.py` génère cinq fichiers CSV à partir des données orig
 - `item_nodes.csv` : Noeuds d'identifiants de tous les items (c-à-d des jeux).
 - `review_relations.csv` : Relations de critiques des utilisateurs envers les jeux.
 - `item_relations.csv` : Relations entre les joueurs et le temps de jeu.
-- `item_metadata.csv` : Metadonnées pour chaque jeux
+- `item_metadata.csv` : Métadonnées pour chaque jeux
+
+Ca prendra quelques minutes à completer
 
 
 ## Importation des noeuds et relations dans Neo4j
@@ -149,38 +132,143 @@ base de données `Neo4j`. Il faut effectuer les étapes suivantes :
   - `cp item_metadata.csv <import>`
 - Vérifier dans le fichier `conf/neo4j.conf` (situé dans le répertoire de la DBMS) que la ligne 22
   (`<server.directories.import=import>`) n'est pas masquée.
-- Arrêter la DBMS dans `Neo4j desktop` et lancer le commande suivante dans le terminal `Neo4j` dans
-  le directoire de la DBMS :
-  `bin\neo4j-admin database import full --nodes=import/user_nodes.csv --nodes=import/item_nodes.csv --relationships=import/review_relations.csv --relationships=import/item_relations.csv --overwrite-destination --skip-bad-relationships --skip-duplicate-nodes`
+- Arrêter la DBMS dans `Neo4j desktop` et lancer le commande suivante dans le terminal `Neo4j` dans le directoire de la DBMS :
+```
+bin\neo4j-admin database import full --nodes=import/user_nodes.csv --nodes=import/item_nodes.csv --relationships=import/review_relations.csv --relationships=import/item_relations.csv --overwrite-destination --skip-bad-relationships --skip-duplicate-nodes
+```
 - Relancer la DBMS. Il est maintenant possible d'interagir avec le graphe dans `Neo4j browser`.
-- Importer les metadonnées et les rélations correspondantes en utilisant le code suivante dans le `Neo4j browser`:
+- Importer les métadonnées et créer les rélations correspondantes en utilisant le code suivante dans le `Neo4j browser`:
 
 ```
-LOAD CSV WITH HEADERS from 'file:///item_metadata.csv' as row 
-FIELDTERMINATOR '|'
-with row where row.GameID is not null
-merge (j:GameID {id:row.GameID})
-set j.title=row.title, j.price=row.price, j.release_date=row.release
-with j, row where row.publisher is not null
-unwind split(row.publisher, ',') as publisherSimple
-merge (p:Publisher {name:publisherSimple})
-merge (j) - [:PUBLISHED_BY] -> (p)
-with j, row where row.genres is not null
-unwind split(row.genres, ',') as genre
-merge (g:Genre {name:genre})
-merge (j) - [:HAS_GENRE] -> (g)
-with j, row where row.tags is not null
-unwind split(row.tags, ',') as tag
-merge (t:Tag {name:tag})
-merge (j) - [:TAGGED_AS] -> (t)
-with j, row where row.specs is not null
-unwind split(row.specs, ',') as spec
-merge (sp:Spec {name:spec})
-merge (j) - [:HAS_SPECIFICATION] -> (sp)
-with j, row where row.sentiment is not null
-merge (se:Sentiment {name:row.sentiment})
-merge (j) - [:HAS_SENTIMENT] -> (se)
-with j, row where row.metascore is not null
-merge (m:Metascore {name:row.metascore})
-merge (j) - [:HAS_SCORE] -> (m)
+LOAD CSV WITH HEADERS from 'file:///item_metadata.csv' as row FIELDTERMINATOR '|'
+WITH row WHERE row.GameID IS NOT NULL
+MERGE (j:GameID {id:row.GameID})
+SET j.title=row.title, j.price=toFloat(row.price), j.release_date=row.release
+WITH j, row WHERE row.release IS NOT NULL
+MERGE (y:Year {name:toInteger(substring((trim(row.release)),0,4))})
+MERGE (j) - [r:RELEASED_IN] -> (y)
+WITH j, row WHERE row.publisher IS NOT NULL
+UNWIND split(row.publisher, ',') AS publisherSimple
+MERGE (p:Publisher {name:publisherSimple})
+MERGE (j) - [:PUBLISHED_BY] -> (p)
+WITH j, row WHERE row.genres IS NOT NULL
+UNWIND split(row.genres, ',') AS genre
+MERGE (g:Genre {name:genre})
+MERGE (j) - [:HAS_GENRE] -> (g)
+WITH j, row WHERE row.tags IS NOT NULL
+UNWIND split(row.tags, ',') AS tag
+MERGE (t:Tag {name:tag})
+MERGE (j) - [:TAGGED_AS] -> (t)
+WITH j, row WHERE row.specs IS NOT NULL
+UNWIND split(row.specs, ',') AS spec
+MERGE (sp:Spec {name:spec})
+MERGE (j) - [:HAS_SPECIFICATION] -> (sp)
+WITH j, row WHERE row.sentiment IS NOT NULL
+MERGE (se:Sentiment {name:row.sentiment})
+MERGE (j) - [:HAS_SENTIMENT] -> (se)
+WITH j, row WHERE row.metascore IS NOT NULL
+MERGE (m:Metascore {name:toInteger(row.metascore)})
+MERGE (j) - [:HAS_SCORE] -> (m)
 ```
+
+On termine l'importation par modifier quelques propriétés pour qu'ils soient plus convivials utiliser dans les requêtes:
+```
+MATCH (j:GameID) <- [r:RECOMMENDS] - (u:UserID)
+SET r.recommends = toBoolean(r.recommends)
+```
+```
+MATCH (s:Sentiment) WHERE s.name IS NOT NULL
+WITH s, 
+(CASE s.name
+WHEN "Overwhelmingly Positive" THEN 8
+WHEN "Very Positive" THEN 7
+WHEN "Mostly Positive" THEN 6
+WHEN "Positive" THEN 5
+WHEN "Mixed" THEN 4
+WHEN "Negative" THEN 3
+WHEN "Mostly Negative" THEN 2
+WHEN "Very Negative" THEN 1
+WHEN "Overwhelmingly Negative" THEN 0
+ELSE NULL END) AS category
+SET s.level = category
+```
+
+
+## Recommandations
+
+Maintenant que les données sont nettoyées et importées, et le DBMS est populé des rélations, on peu générer des recommandations, selon des critères différentes. 
+
+### Recommandations basées sur le contenu
+
+Mettons qu'on soit un nouveau utilisateur, on voudrait trouver lequels jeux sont les plus aimés. Ici on choisit les jeux qui ont un `Sentiment` global d'"Overwhelmingly positive" ou "Very positive" (les niveaux 7 et 8), un `Metascore` de 80+, et qui ont le plus d'utilisateurs qui les `Recommandent`:
+
+```
+MATCH (s:Sentiment) <- [h:HAS_SENTIMENT] - (j:GameID) <- [r:RECOMMENDS] - (u:UserID), (j) - [h2:HAS_SCORE] -> (m:Metascore)
+WHERE j.title IS NOT NULL AND s.level >=7 AND m.name >= 80
+WITH j, r
+WHERE r.recommends = True
+RETURN j.title AS most_popular, COUNT(*) AS times_rated
+ORDER BY times_rated DESC LIMIT 10
+```
+Ce requête nous retourne la liste des jeux suivante:
+
+│most_popular                      │times_rated│  
+│"Team Fortress 2"                 │3611       │  
+│"Counter-Strike: Global Offensive"│3475       │  
+│"Left 4 Dead 2"                   │731        │  
+│"Terraria"                        │723        │  
+│"Borderlands 2"                   │548        │  
+│"Portal 2"                        │371        │  
+│"Sid Meier's Civilization® V"     │332        │  
+│"Starbound"                       │332        │  
+│"PlanetSide 2"                    │330        │  
+│"Rocket League®"                  │260        │
+
+On reconnait le jeu `Portal 2`, et on verifie qu'il est sortie en 2011:
+
+```
+match (j:GameID {title:"Portal 2"}) 
+RETURN j
+```
+
+On veut donc trouver des jeux similaires qui se sont sorties plus recemments. On commence par chercher les jeux qui partage au moins un `Genre` ET un `Tag` avec Portal 2, et on limite la recherche aux jeux sorties après 2011 (avec cette condition on est confiant que notre recherche ne retournera pas `Portal 2`). Il y a beaucoup plus des Tags que des Genres, donc on utilise le quantité des Tags en commun comme indice de similarité. Notre recherche avec les deux conditions peut générer des Tags en duplicat, donc on COLLECT que les Tags DISTINCT
+
+```
+MATCH (new:GameID) - [:HAS_GENRE] -> (g:Genre) <- [:HAS_GENRE] - (j:GameID {title:"Portal 2"}) - [:TAGGED_AS] -> (t:Tag) <- [:TAGGED_AS] - (new),  (new) - [:RELEASED_IN] -> (y:Year)
+WHERE y.name > 2011
+WITH new.title AS recommendation, y.name AS year, COLLECT(DISTINCT t.name) AS tags, COUNT(DISTINCT t.name) AS shared_tags
+RETURN recommendation, year, shared_tags, tags
+ORDER BY shared_tags DESC, year DESC LIMIT 10
+```
+
+Ce requête nous retourne la liste des jeux suivante:
+
+│recommendation                                     │year│shared_tags│  
+│"Portal Stories: Mel"                              │2015│15         │  
+│"Thinking with Time Machine"                       │2014│15         │  
+│"Borderlands: The Pre-Sequel"                      │2014│14         │  
+│"Polarity"                                         │2014│14         │  
+│"Aperture Tag: The Paint Gun Testing Initiative"   │2014│14         │  
+│"LEGO® STAR WARS™: The Force Awakens"              │2016│13         │  
+│"Who's Your Daddy"                                 │2015│12         │  
+│"Sanctum 2"                                        │2013│12         │  
+│"Half Dead"                                        │2016│11         │  
+│"Battleborn"                                       │2016│11         │  
+│"Saints Row: Gat out of Hell"                      │2015│11         │  
+│"LEGO® The Hobbit™"                                │2014│11         │  
+│"BattleBlock Theater®"                             │2014│11         │  
+│"Only If"                                          │2014│11         │  
+│"Tom Clancy’s Splinter Cell Blacklist"             │2013│11         │  
+│"Resident Evil Revelations / Biohazard Revelations"│2013│11         │  
+│"Interstellar Marines"                             │2013│11         │  
+│"Borderlands 2"                                    │2012│11         │  
+│"Rocketbirds: Hardboiled Chicken"                  │2012│11         │  
+│"Natural Selection 2"                              │2012│11         │  
+
+
+D'un premier coup, on voit que `Borderlands 2` à été trouvé par nos deux recherches, donc on peut imaginer que c'est un bon choix a essayer premierement.
+
+### Recommandations par filtrage collaboratif
+
+
+### Recommandations basées sur le similarité entre les utilisateurs
