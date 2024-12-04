@@ -198,9 +198,10 @@ SET s.level = category
 
 Maintenant que les données sont nettoyées et importées, et le DBMS est populé des rélations, on peu générer des recommandations, selon des critères différentes. 
 
+
 ### Recommandations basées sur le contenu
 
-Mettons qu'on soit un nouveau utilisateur, on voudrait trouver lequels jeux sont les plus aimés. Ici on choisit les jeux qui ont un `Sentiment` global d'"Overwhelmingly positive" ou "Very positive" (les niveaux 7 et 8), un `Metascore` de 80+, et qui ont le plus d'utilisateurs qui les `Recommandent`:
+Mettons qu'on soit un nouveau utilisateur, on voudrait trouver lequels jeux sont les plus aimés. Ici on choisit les jeux qui ont un `Sentiment` global d'"Overwhelmingly positive" ou "Very positive" (les niveaux 7 et 8), un `Metascore` de 80+, et qui ont le plus d'utilisateurs qui les `Recommend`:
 
 ```
 MATCH (s:Sentiment) <- [h:HAS_SENTIMENT] - (j:GameID) <- [r:RECOMMENDS] - (u:UserID), (j) - [h2:HAS_SCORE] -> (m:Metascore)
@@ -241,7 +242,7 @@ RETURN recommendation, year, shared_tags, tags
 ORDER BY shared_tags DESC, year DESC LIMIT 10
 ```
 
-Ce requête nous retourne la liste des jeux suivante:
+Ce requête nous retourne la liste des jeux suivante (sans le colonne 'tags' pour lisabilité):
 
 │recommendation                                     │year│shared_tags│  
 │"Portal Stories: Mel"                              │2015│15         │  
@@ -268,7 +269,14 @@ Ce requête nous retourne la liste des jeux suivante:
 
 D'un premier coup, on voit que `Borderlands 2` à été trouvé par nos deux recherches, donc on peut imaginer que c'est un bon choix a essayer premierement.
 
+
 ### Recommandations par filtrage collaboratif
+
+Ici on peut fair 1 ou 2 requetes de base filtrage collaboratif. Por exemple, choisir un UserID random, utiliser les genres, tags, specs, time_played, recommendations des jeux pour identifier des utilisateurs similaires (soit tout, ou peut etre les 1000 plus similaires). Ensuite, generer une liste des jeux que ces utilisateurs ont joué le plus, qu'utilisater X n'a jamais joué (playtime does not existe or == 0), filtré par score, # recommendations, sentiment, etc... mais en order de total playtime (en disant qu'on a deja filtré les jeux pour qualité, similarité, donc on veut suggerer les jeux les plus joué).
 
 
 ### Recommandations basées sur le similarité entre les utilisateurs
+
+En disant qu'on a joué à Borderlands 2 et on veut trouver des jeux similaires, on peut utiliser un calcul se similarite pour en chercher.
+
+Ici on peut aussi choisir (peut etre le meme que tantot) un UserID, utiliser un calcul de similarité pour trouver des utilisateurs similaires, et voir lequels jeux qu'ils ont recommendé, avec un bon score, qui sont les plus recommendés, etc...
