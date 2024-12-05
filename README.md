@@ -71,20 +71,20 @@ Le fichier `Version 2: Item metadata` contient les métadonnées des jeux sous l
 
 ```
 {
-    'publisher': <name>, 
-    'genres': [<genres>], 
-    'app_name': <name>, 
-    'sentiment': <rating>, 
-    'title': <title>, 
-    'url': <URL>, 
-    'release_date': <date>, 
-    'tags': [<tags>], 
-    'reviews_url': <URL>, 
-    'specs': [<specifications>], 
-    'price': <price>, 
-    'metascore': <n>, 
-    'early_access': <True / False>, 
-    'id': <ID>, 
+    'publisher': <name>,
+    'genres': [<genres>],
+    'app_name': <name>,
+    'sentiment': <rating>,
+    'title': <title>,
+    'url': <URL>,
+    'release_date': <date>,
+    'tags': [<tags>],
+    'reviews_url': <URL>,
+    'specs': [<specifications>],
+    'price': <price>,
+    'metascore': <n>,
+    'early_access': <True / False>,
+    'id': <ID>,
     'developer': <name>
 }
 ```
@@ -106,9 +106,9 @@ Le script `preprocess.py` génère cinq fichiers CSV à partir des données orig
 - `item_nodes.csv` : Noeuds d'identifiants de tous les items (c-à-d des jeux).
 - `review_relations.csv` : Relations de critiques des utilisateurs envers les jeux.
 - `item_relations.csv` : Relations entre les joueurs et le temps de jeu.
-- `item_metadata.csv` : Métadonnées pour chaque jeux
+- `item_metadata.csv` : Métadonnées pour chaque jeux, comme leur genre et leur prix.
 
-Ca prendra quelques minutes à completer
+L'exécution du script prend quelques minutes à compléter.
 
 
 ## Importation des noeuds et relations dans Neo4j
@@ -137,7 +137,7 @@ base de données `Neo4j`. Il faut effectuer les étapes suivantes :
 bin\neo4j-admin database import full --nodes=import/user_nodes.csv --nodes=import/item_nodes.csv --relationships=import/review_relations.csv --relationships=import/item_relations.csv --overwrite-destination --skip-bad-relationships --skip-duplicate-nodes
 ```
 - Relancer la DBMS. Il est maintenant possible d'interagir avec le graphe dans `Neo4j browser`.
-- Importer les métadonnées et créer les rélations correspondantes en utilisant le code suivante dans le `Neo4j browser`:
+- Importer les métadonnées et créer les relations correspondantes en utilisant le code suivante dans le `Neo4j browser`:
 
 ```
 LOAD CSV WITH HEADERS from 'file:///item_metadata.csv' as row FIELDTERMINATOR '|'
@@ -171,14 +171,16 @@ MERGE (m:Metascore {name:toInteger(row.metascore)})
 MERGE (j) - [:HAS_SCORE] -> (m)
 ```
 
-On termine l'importation par modifier quelques propriétés pour qu'ils soient plus convivials utiliser dans les requêtes:
+On termine l'importation par modifier quelques propriétés pour qu'elles soient plus conviviales d'utilisation dans les requêtes :
+
 ```
 MATCH (j:GameID) <- [r:RECOMMENDS] - (u:UserID)
 SET r.recommends = toBoolean(r.recommends)
 ```
+
 ```
 MATCH (s:Sentiment) WHERE s.name IS NOT NULL
-WITH s, 
+WITH s,
 (CASE s.name
 WHEN "Overwhelmingly Positive" THEN 8
 WHEN "Very Positive" THEN 7
@@ -196,7 +198,7 @@ SET s.level = category
 
 ## Recommandations
 
-Maintenant que les données sont nettoyées et importées, et le DBMS est populé des rélations, on peu générer des recommandations, selon des critères différentes. 
+Maintenant que les données sont nettoyées et importées, et le DBMS est populée des relations, on peut générer des recommandations, selon différents critères.
 
 
 ### Recommandations basées sur le contenu
@@ -213,26 +215,26 @@ ORDER BY times_rated DESC LIMIT 10
 ```
 Ce requête nous retourne la liste des jeux suivante:
 
-│most_popular                      │times_rated│  
-│"Team Fortress 2"                 │3611       │  
-│"Counter-Strike: Global Offensive"│3475       │  
-│"Left 4 Dead 2"                   │731        │  
-│"Terraria"                        │723        │  
-│"Borderlands 2"                   │548        │  
-│"Portal 2"                        │371        │  
-│"Sid Meier's Civilization® V"     │332        │  
-│"Starbound"                       │332        │  
-│"PlanetSide 2"                    │330        │  
+│most_popular                      │times_rated│
+│"Team Fortress 2"                 │3611       │
+│"Counter-Strike: Global Offensive"│3475       │
+│"Left 4 Dead 2"                   │731        │
+│"Terraria"                        │723        │
+│"Borderlands 2"                   │548        │
+│"Portal 2"                        │371        │
+│"Sid Meier's Civilization® V"     │332        │
+│"Starbound"                       │332        │
+│"PlanetSide 2"                    │330        │
 │"Rocket League®"                  │260        │
 
 On reconnait le jeu `Portal 2`, et on verifie qu'il est sortie en 2011:
 
 ```
-match (j:GameID {title:"Portal 2"}) 
+match (j:GameID {title:"Portal 2"})
 RETURN j
 ```
 
-On veut donc trouver des jeux similaires qui se sont sorties plus recemments. On commence par chercher les jeux qui partage au moins un `Genre` ET un `Tag` avec Portal 2, et on limite la recherche aux jeux sorties après 2011 (avec cette condition on est confiant que notre recherche ne retournera pas `Portal 2`). Il y a beaucoup plus des Tags que des Genres, donc on utilise le quantité des Tags en commun comme indice de similarité. Notre recherche avec les deux conditions peut générer des Tags en duplicat, donc on COLLECT que les Tags DISTINCT
+On veut donc trouver des jeux similaires qui sont sorties plus récemment. On commence par chercher les jeux qui partagent au moins un `Genre` ET un `Tag` avec Portal 2, et on limite la recherche aux jeux sorties après 2011 (avec cette condition on est confiant que notre recherche ne retournera pas `Portal 2`). Il y a beaucoup plus des Tags que des Genres, donc on utilise le quantité des Tags en commun comme indice de similarité. Notre recherche avec les deux conditions peut générer des Tags en duplicats, donc on COLLECT que les Tags DISTINCT
 
 ```
 MATCH (new:GameID) - [:HAS_GENRE] -> (g:Genre) <- [:HAS_GENRE] - (j:GameID {title:"Portal 2"}) - [:TAGGED_AS] -> (t:Tag) <- [:TAGGED_AS] - (new),  (new) - [:RELEASED_IN] -> (y:Year)
@@ -242,41 +244,57 @@ RETURN recommendation, year, shared_tags, tags
 ORDER BY shared_tags DESC, year DESC LIMIT 10
 ```
 
-Ce requête nous retourne la liste des jeux suivante (sans le colonne 'tags' pour lisabilité):
+Ce requête nous retourne la liste des jeux suivante (sans la colonne 'tags' pour lisibilité) :
 
-│recommendation                                     │year│shared_tags│  
-│"Portal Stories: Mel"                              │2015│15         │  
-│"Thinking with Time Machine"                       │2014│15         │  
-│"Borderlands: The Pre-Sequel"                      │2014│14         │  
-│"Polarity"                                         │2014│14         │  
-│"Aperture Tag: The Paint Gun Testing Initiative"   │2014│14         │  
-│"LEGO® STAR WARS™: The Force Awakens"              │2016│13         │  
-│"Who's Your Daddy"                                 │2015│12         │  
-│"Sanctum 2"                                        │2013│12         │  
-│"Half Dead"                                        │2016│11         │  
-│"Battleborn"                                       │2016│11         │  
-│"Saints Row: Gat out of Hell"                      │2015│11         │  
-│"LEGO® The Hobbit™"                                │2014│11         │  
-│"BattleBlock Theater®"                             │2014│11         │  
-│"Only If"                                          │2014│11         │  
-│"Tom Clancy’s Splinter Cell Blacklist"             │2013│11         │  
-│"Resident Evil Revelations / Biohazard Revelations"│2013│11         │  
-│"Interstellar Marines"                             │2013│11         │  
-│"Borderlands 2"                                    │2012│11         │  
-│"Rocketbirds: Hardboiled Chicken"                  │2012│11         │  
-│"Natural Selection 2"                              │2012│11         │  
+│recommendation                                     │year│shared_tags│
+│"Portal Stories: Mel"                              │2015│15         │
+│"Thinking with Time Machine"                       │2014│15         │
+│"Borderlands: The Pre-Sequel"                      │2014│14         │
+│"Polarity"                                         │2014│14         │
+│"Aperture Tag: The Paint Gun Testing Initiative"   │2014│14         │
+│"LEGO® STAR WARS™: The Force Awakens"              │2016│13         │
+│"Who's Your Daddy"                                 │2015│12         │
+│"Sanctum 2"                                        │2013│12         │
+│"Half Dead"                                        │2016│11         │
+│"Battleborn"                                       │2016│11         │
+│"Saints Row: Gat out of Hell"                      │2015│11         │
+│"LEGO® The Hobbit™"                                │2014│11         │
+│"BattleBlock Theater®"                             │2014│11         │
+│"Only If"                                          │2014│11         │
+│"Tom Clancy’s Splinter Cell Blacklist"             │2013│11         │
+│"Resident Evil Revelations / Biohazard Revelations"│2013│11         │
+│"Interstellar Marines"                             │2013│11         │
+│"Borderlands 2"                                    │2012│11         │
+│"Rocketbirds: Hardboiled Chicken"                  │2012│11         │
+│"Natural Selection 2"                              │2012│11         │
 
 
-D'un premier coup, on voit que `Borderlands 2` à été trouvé par nos deux recherches, donc on peut imaginer que c'est un bon choix a essayer premierement.
+D'un premier coup, on voit que `Borderlands 2` à été trouvé par nos deux recherches, donc on peut imaginer que c'est un bon choix a essayer premièrement.
 
 
 ### Recommandations par filtrage collaboratif
 
-Ici on peut fair 1 ou 2 requetes de base filtrage collaboratif. Por exemple, choisir un UserID random, utiliser les genres, tags, specs, time_played, recommendations des jeux pour identifier des utilisateurs similaires (soit tout, ou peut etre les 1000 plus similaires). Ensuite, generer une liste des jeux que ces utilisateurs ont joué le plus, qu'utilisater X n'a jamais joué (playtime does not existe or == 0), filtré par score, # recommendations, sentiment, etc... mais en order de total playtime (en disant qu'on a deja filtré les jeux pour qualité, similarité, donc on veut suggerer les jeux les plus joué).
+Ici on peut faire 1 ou 2 requêtes avec le filtrage collaboratif. Par exemple, choisir un UserID aléatoire, utiliser les genres, tags, specs, time_played, recommendations des jeux pour identifier des utilisateurs similaires (soit tout, ou peut-être les 1000 plus similaires). Ensuite, générer une liste des jeux que ces utilisateurs ont joué le plus, qu'utilisater X n'a jamais joué (playtime does not existe or == 0), filtré par score, # recommendations, sentiment, etc... mais en order de total playtime (en disant qu'on a deja filtré les jeux pour qualité, similarité, donc on veut suggérer les jeux les plus joué).
+
+```
+// Select a random user
+MATCH (u:UserID)
+ORDER BY RAND()
+LIMIT 1
+
+// Fetch similar users
+MATCH (similarUser:UserID) - [:RECOMMENDS] -> (j:GameID) <- [:RECOMMENDS] - (u)
+WITH similarUser.id AS user, j.title AS game
+RETURN user, game
+LIMIT 5
+
+// Fetch games liked by the similar users
+// RETURN u
+```
 
 
 ### Recommandations basées sur le similarité entre les utilisateurs
 
-En disant qu'on a joué à Borderlands 2 et on veut trouver des jeux similaires, on peut utiliser un calcul se similarite pour en chercher.
+En disant qu'on a joué à Borderlands 2 et on veut trouver des jeux similaires, on peut utiliser un calcul de similarité pour en chercher.
 
-Ici on peut aussi choisir (peut etre le meme que tantot) un UserID, utiliser un calcul de similarité pour trouver des utilisateurs similaires, et voir lequels jeux qu'ils ont recommendé, avec un bon score, qui sont les plus recommendés, etc...
+Ici on peut aussi choisir (peut-être le même que précédemment) un UserID, utiliser un calcul de similarité pour trouver des utilisateurs similaires, et voir quels jeux ils ont recommandés, avec un bon score, qui sont les plus recommandés, etc...
