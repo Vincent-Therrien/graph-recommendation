@@ -182,15 +182,15 @@ SET r.recommends = toBoolean(r.recommends)
 MATCH (s:Sentiment) WHERE s.name IS NOT NULL
 WITH s,
 (CASE s.name
-WHEN "Overwhelmingly Positive" THEN 8
-WHEN "Very Positive" THEN 7
-WHEN "Mostly Positive" THEN 6
-WHEN "Positive" THEN 5
-WHEN "Mixed" THEN 4
-WHEN "Negative" THEN 3
-WHEN "Mostly Negative" THEN 2
-WHEN "Very Negative" THEN 1
-WHEN "Overwhelmingly Negative" THEN 0
+WHEN "Overwhelmingly Positive" THEN 4
+WHEN "Very Positive" THEN 3
+WHEN "Mostly Positive" THEN 2
+WHEN "Positive" THEN 1
+WHEN "Mixed" THEN 0
+WHEN "Negative" THEN -1
+WHEN "Mostly Negative" THEN -2
+WHEN "Very Negative" THEN -3
+WHEN "Overwhelmingly Negative" THEN -4
 ELSE NULL END) AS category
 SET s.level = category
 ```
@@ -203,11 +203,11 @@ Maintenant que les données sont nettoyées et importées, et le DBMS est popul�
 
 ### Recommandations basées sur le contenu
 
-Mettons qu'on soit un nouveau utilisateur, on voudrait trouver lequels jeux sont les plus aimés. Ici on choisit les jeux qui ont un `Sentiment` global d'"Overwhelmingly positive" ou "Very positive" (les niveaux 7 et 8), un `Metascore` de 80+, et qui ont le plus d'utilisateurs qui les `Recommend`:
+Mettons qu'on soit un nouveau utilisateur, on voudrait trouver lequels jeux sont les plus aimés. Ici on choisit les jeux qui ont un `Sentiment` global d'"Overwhelmingly positive" ou "Very positive" (les niveaux 3 et 4), un `Metascore` de 80+, et qui ont le plus d'utilisateurs qui les `Recommend`:
 
 ```
 MATCH (s:Sentiment) <- [h:HAS_SENTIMENT] - (j:GameID) <- [r:RECOMMENDS] - (u:UserID), (j) - [h2:HAS_SCORE] -> (m:Metascore)
-WHERE j.title IS NOT NULL AND s.level >=7 AND m.name >= 80
+WHERE j.title IS NOT NULL AND s.level >=3 AND m.name >= 80
 WITH j, r
 WHERE r.recommends = True
 RETURN j.title AS most_popular, COUNT(*) AS times_rated
@@ -241,7 +241,7 @@ MATCH (new:GameID) - [:HAS_GENRE] -> (g:Genre) <- [:HAS_GENRE] - (j:GameID {titl
 WHERE y.name > 2011
 WITH new.title AS recommendation, y.name AS year, COLLECT(DISTINCT t.name) AS tags, COUNT(DISTINCT t.name) AS shared_tags
 RETURN recommendation, year, shared_tags, tags
-ORDER BY shared_tags DESC, year DESC LIMIT 10
+ORDER BY shared_tags DESC, year DESC LIMIT 20
 ```
 
 Ce requête nous retourne la liste des jeux suivante (sans la colonne 'tags' pour lisibilité) :
@@ -274,7 +274,26 @@ D'un premier coup, on voit que `Borderlands 2` à été trouvé par nos deux rec
 
 ### Recommandations par filtrage collaboratif
 
-Ici on peut faire 1 ou 2 requêtes avec le filtrage collaboratif. Par exemple, choisir un UserID aléatoire, utiliser les genres, tags, specs, time_played, recommendations des jeux pour identifier des utilisateurs similaires (soit tout, ou peut-être les 1000 plus similaires). Ensuite, générer une liste des jeux que ces utilisateurs ont joué le plus, qu'utilisater X n'a jamais joué (playtime does not existe or == 0), filtré par score, # recommendations, sentiment, etc... mais en order de total playtime (en disant qu'on a deja filtré les jeux pour qualité, similarité, donc on veut suggérer les jeux les plus joué).
+Ici on peut faire 1 ou 2 requêtes avec le filtrage collaboratif. Par exemple, choisir un UserID aléatoire, utiliser les publishers, genres, tags, time_played, recommendations des jeux pour identifier des utilisateurs similaires (soit tout, ou peut-être les 1000 plus similaires). Ensuite, générer une liste des jeux que ces utilisateurs ont joué le plus, qu'utilisater X n'a jamais joué (playtime does not existe or == 0), filtré par score, # recommendations, sentiment, etc... mais en order de total playtime (en disant qu'on a deja filtré les jeux pour qualité, similarité, donc on veut suggérer les jeux les plus joué).
+
+Ici est une liste de quelques utilisateurs avec > 500 games owned (et des noms que j'ai aimé) donc 
+uthequeenpanda
+uTheKiwiMantis
+uTacticalCrayon
+uFEEEEESH
+ukittenwithmittens
+ukirbysmashed
+uNotForPikachu
+
+Et ici des utilisateurs avec 50+ jeux et 5+ recommendations (le max # des recommendations est 20)
+uarmouredmarshmallow
+uKebabsaregood
+
+match (u:UserID) - [r:RECOMMENDS] -> (:GameID) 
+where u.games_owned > 50
+with u, count(r) as recs
+where recs > 5
+return u, recs
 
 ```
 // Select a random user
@@ -295,6 +314,23 @@ LIMIT 5
 
 ### Recommandations basées sur le similarité entre les utilisateurs
 
-En disant qu'on a joué à Borderlands 2 et on veut trouver des jeux similaires, on peut utiliser un calcul de similarité pour en chercher.
+En disant qu'on a joué à Borderlands 2 et on veut trouver des jeux similairement joués, on décide d'utiliser un calcul de similarité Pearson pour en chercher, basé sur des jeux avec un similairité de total_playtime. On utilise la corrélation de Pearson pour adapter a la variabilité de playtime entre utilisateur.  
+Apres l'avoir essayé, il y avait un probleme be memoire en utlisant Borderlands 2 comme jeu de reference (avec 9524 joueurs), donc apres avoir généré une liste des jeux similaires (qui partage au moins un Genre et un Tag) avec moins de 8000 utilisateurs on a decidé d'utiliser `Ricochet` comme jeu de reference (qui a 7962 joueurs).
 
-Ici on peut aussi choisir (peut-être le même que précédemment) un UserID, utiliser un calcul de similarité pour trouver des utilisateurs similaires, et voir quels jeux ils ont recommandés, avec un bon score, qui sont les plus recommandés, etc...
+```
+MATCH (BL2:GameID {title:"Ricochet"}) <- [p:PLAYED] - (u:UserID)
+WITH (BL2), avg(p.playtime) AS BL2_mean
+MATCH (BL2) <- [p1:PLAYED] - (u:UserID) - [p2:PLAYED] -> (new:GameID)
+WHERE new.title IS NOT NULL
+WITH BL2, BL2_mean, new, COLLECT({p1:p1, p2:p2}) AS playtime WHERE size(playtime) > 50
+MATCH (new) <- [p:PLAYED] - (u:UserID)
+WITH BL2, BL2_mean, new, avg(p.playtime) AS new_mean, playtime
+UNWIND playtime AS p
+WITH sum ((p.p1.playtime - BL2_mean) * (p.p2.playtime - new_mean)) AS numerator,
+sqrt(sum((p.p1.playtime - BL2_mean)^2) * sum((p.p2.playtime - new_mean)^2)) AS denominator,
+BL2, new WHERE denominator <> 0
+RETURN BL2.title, new.title, numerator/denominator AS Pearson
+ORDER BY Pearson DESC LIMIT 20
+```
+
+Ici on peut aussi choisir (peut-être le même que précédemment) un UserID, utiliser un calcul de similarité Pearson pour trouver des utilisateurs similaires, et voir quels jeux ils ont recommandés, avec un bon score, qui sont les plus recommandés, etc...
