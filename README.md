@@ -206,10 +206,10 @@ Maintenant que les données sont nettoyées et importées, et le DBMS est popul�
 Mettons qu'on soit un nouveau utilisateur, on voudrait trouver lequels jeux sont les plus aimés. Ici on choisit les jeux qui ont un `Sentiment` global d'"Overwhelmingly positive" ou "Very positive" (les niveaux 3 et 4), un `Metascore` de 80+, et qui ont le plus d'utilisateurs qui les `Recommend`:
 
 ```
-MATCH (s:Sentiment) <- [h:HAS_SENTIMENT] - (j:GameID) <- [r:RECOMMENDS] - (u:UserID), (j) - [h2:HAS_SCORE] -> (m:Metascore)
+MATCH (s:Sentiment) <- [:HAS_SENTIMENT] - (j:GameID) <- [r:RECOMMENDS] - (u:UserID), (y:Year) <- [:RELEASED_IN] - (j) - [:HAS_SCORE] -> (m:Metascore)
 WHERE j.title IS NOT NULL AND s.level >=3 AND m.name >= 80
 WITH j, r
-WHERE r.recommends = True
+WHERE r.recommends = True AND j.price < 80 AND y.name > 2012
 RETURN j.title AS most_popular, COUNT(*) AS times_rated
 ORDER BY times_rated DESC LIMIT 10
 ```
@@ -334,3 +334,35 @@ ORDER BY Pearson DESC LIMIT 20
 ```
 
 Ici on peut aussi choisir (peut-être le même que précédemment) un UserID, utiliser un calcul de similarité Pearson pour trouver des utilisateurs similaires, et voir quels jeux ils ont recommandés, avec un bon score, qui sont les plus recommandés, etc...
+
+
+
+
+
+
+MATCH (u:UserID)
+ORDER BY RAND()
+LIMIT 1
+MATCH u - [p:PLAYED] -> (j:GameID)
+CALL {
+    WITH u, p
+    WITH u, p
+    WHERE COUNT(p) < 20
+    MATCH (s:Sentiment) <- [:HAS_SENTIMENT] - (j:GameID) <- [r:RECOMMENDS] - (:UserID), (y:Year) <- [:RELEASED_IN] - (j) - [:HAS_SCORE] -> (m:Metascore)
+    WHERE j.title IS NOT NULL AND s.level >=3 AND m.name >= 80
+    WITH j, r, y
+    WHERE r.recommends = True AND j.price < 80 AND y.name > 2012
+    RETURN j.title AS most_popular, COUNT(*) AS times_recommended, y.name AS release_year, j.price AS price
+    ORDER BY times_recommended DESC LIMIT 10
+
+    UNION
+
+    WITH u, p
+    WITH u, p
+    WHERE COUNT(p) >= 20
+    MATCH (similarUser:UserID) - [:RECOMMENDS] -> (j:GameID) <- [:RECOMMENDS] - (u)
+    WITH similarUser.id AS user, j.title AS game
+    RETURN user, game
+    LIMIT 5
+
+}
