@@ -348,10 +348,13 @@ CALL {
     WITH u, p
     WITH u, p
     WHERE COUNT(p) < 20
+    MATCH (j:GameID) 
+    WHERE j.price IS NOT NULL AND j.price > 0
+    WITH percentileCont(j.price, 0.85) AS upper
     MATCH (s:Sentiment) <- [:HAS_SENTIMENT] - (j:GameID) <- [r:RECOMMENDS] - (:UserID), (y:Year) <- [:RELEASED_IN] - (j) - [:HAS_SCORE] -> (m:Metascore)
     WHERE j.title IS NOT NULL AND s.level >=3 AND m.name >= 80
-    WITH j, r, y
-    WHERE r.recommends = True AND j.price < 80 AND y.name > 2012
+    WITH j, r, y, upper
+    WHERE r.recommends = True AND j.price <= upper AND y.name > 2012
     RETURN j.title AS most_popular, COUNT(*) AS times_recommended, y.name AS release_year, j.price AS price
     ORDER BY times_recommended DESC LIMIT 10
 
