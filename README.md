@@ -333,13 +333,15 @@ RETURN BL2.title, new.title, numerator/denominator AS Pearson
 ORDER BY Pearson DESC LIMIT 20
 ```
 
-Ici on peut aussi choisir (peut-être le même que précédemment) un UserID, utiliser un calcul de similarité Pearson pour trouver des utilisateurs similaires, et voir quels jeux ils ont recommandés, avec un bon score, qui sont les plus recommandés, etc...
 
 
+On a choisit d'utiliser un méthod hybrid de recommandation. On identifie un utilisateur au hasard et on calcule le quantité des jeux qu'il/elle a dans son compte Steam. Si l'utilisateur en a moins de 20, le recommendation est basée sur le contenu, en cherchant les jeux les plus populaires sorties dans les 5 dernieres années (nos données arretent en 2017).
 
+Premierement, on établi une limite de prix a la 85e percentile (plus ou moins le moyen + 1xSD), en excluant les jeux gratuits. On identifie les jeux qui ont un `Sentiment` global d'"Overwhelmingly positive" ou "Very positive" (les niveaux 3 et 4), un `Metascore` de 80+. Ensuite, on limite les resultats aux jeux qui ont un prix dans la 85e percentile, qui s'est sortie apres 2012 (donc les dernieres 5 années des données), et qui ont des recommendations positives. On organise les resultats pour montrer les 10 jeux qui ont le plus d'utilisateurs qui les `Recommend`.
 
+Si l'utilisateur a plus de 20 jeux...
 
-
+```
 MATCH (u:UserID)
 ORDER BY RAND()
 LIMIT 1
@@ -355,7 +357,7 @@ CALL {
     WHERE j.title IS NOT NULL AND s.level >=3 AND m.name >= 80
     WITH j, r, y, upper
     WHERE r.recommends = True AND j.price <= upper AND y.name > 2012
-    RETURN j.title AS most_popular, COUNT(*) AS times_recommended, y.name AS release_year, j.price AS price
+    RETURN j.title AS most_popular, COUNT(r) AS times_recommended, y.name AS release_year, j.price AS price
     ORDER BY times_recommended DESC LIMIT 10
 
     UNION
@@ -367,5 +369,5 @@ CALL {
     WITH similarUser.id AS user, j.title AS game
     RETURN user, game
     LIMIT 5
-
 }
+```
