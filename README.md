@@ -274,34 +274,26 @@ D'un premier coup, on voit que `Borderlands 2` à été trouvé par nos deux rec
 
 ### Recommandations par filtrage collaboratif
 
-Ici on peut faire 1 ou 2 requêtes avec le filtrage collaboratif. Par exemple, choisir un UserID aléatoire, utiliser les publishers, genres, tags, time_played, recommendations des jeux pour identifier des utilisateurs similaires (soit tout, ou peut-être les 1000 plus similaires). Ensuite, générer une liste des jeux que ces utilisateurs ont joué le plus, qu'utilisater X n'a jamais joué (playtime does not existe or == 0), filtré par score, # recommendations, sentiment, etc... mais en order de total playtime (en disant qu'on a deja filtré les jeux pour qualité, similarité, donc on veut suggérer les jeux les plus joué).
+Le filtrage collaboratif permet de sélectionner des jeux avec le potentiel de plaire à des
+utilisateurs qui n'y ont jamais joué. Le code effectue les opérations suivantes :
 
-Ici est une liste de quelques utilisateurs avec > 500 games owned (et des noms que j'ai aimé) donc 
-uthequeenpanda
-uTheKiwiMantis
-uTacticalCrayon
-uFEEEEESH
-ukittenwithmittens
-ukirbysmashed
-uNotForPikachu
+1. Sélectionner un joueur
+2. Dresser une liste des utilisateurs similaires au joueur sélectionné à l'étape 1 en utilisant
+   l'indice de Jaccard. Les utilisateurs qui ont plus de jeux en commun (par exemple, qui
+   recommandent des jeux similaires) sont plus similaires.
+3. Générer une liste des jeux auxquels les utilisateurs similaires ont joué, mais auquel
+   l'utilisateur sélectionné à l'étape 1 n'a jamais joué.
+4. Ordonner les jeux sélectionnés à l'étape 3 en utilisant une métrique liée à la qualité (par
+   exemple, le temps de jeu ou les évaluations) pour suggérer les meilleurs jeux.
 
-Et ici des utilisateurs avec 50+ jeux et 5+ recommendations (le max # des recommendations est 20)
-uarmouredmarshmallow
-uKebabsaregood
-
-match (u:UserID) - [r:RECOMMENDS] -> (:GameID) 
-where u.games_owned > 50
-with u, count(r) as recs
-where recs > 5
-return u, recs
 
 ```
-// Select a random user
+// Étape 1 : Choisir un utilisateur aléatoirement.
 MATCH (user1:UserID)
 ORDER BY RAND()
 LIMIT 1
 
-// Calculate a similarity score
+// Étape 2 : Calculer la similarité entre les joueurs.
 MATCH (user1:UserID)
 WITH user1 LIMIT 1000 // Process 1000 users at a time
 MATCH (user1) - [:RECOMMENDS] -> (game:GameID) <- [:RECOMMENDS] - (user2:UserID)
@@ -315,12 +307,19 @@ MATCH (user2) - [:RECOMMENDS] -> (:GameID)
 WITH user1, user2, sharedGamesCount, totalGames1, COUNT(*) AS totalGames2
 WITH user1, user2, sharedGamesCount, totalGames1, totalGames2,
      (sharedGamesCount * 1.0) / (totalGames1 + totalGames2 - sharedGamesCount) AS similarityScore
-RETURN user1.id AS User1, user2.id AS User2, similarityScore
+
+// Étape 3 : Identifier les jeux.
 ORDER BY similarityScore DESC
+LIMIT 100
+MATCH (user2)-[:RECOMMENDS]->(recommendedGame:GameID)
+WHERE NOT (user1)-[:RECOMMENDS]->(recommendedGame)
+WITH recommendedGame, COUNT(user2) AS recommendationCount
+ORDER BY recommendationCount DESC
+RETURN recommendedGame.title AS gameTitle, recommendationCount
 LIMIT 10
 ```
 
-On obtient un résultat similaire à l'extrait suivant :
+L'étape 2 produit le résultat suivants :
 
 ```
 ╒════════════════════╤═════════════════════════╤═══════════════════╕
@@ -332,16 +331,32 @@ On obtient un résultat similaire à l'extrait suivant :
 ├────────────────────┼─────────────────────────┼───────────────────┤
 │"u76561198075132070"│"u76561198088785160"     │0.42857142857142855│
 ├────────────────────┼─────────────────────────┼───────────────────┤
-│"u76561198075132070"│"u76561198081343863"     │0.3333333333333333 │
-├────────────────────┼─────────────────────────┼───────────────────┤
-│"u76561198075132070"│"uonce-i-was-7-years-old"│0.3333333333333333 │
-└────────────────────┴─────────────────────────┴───────────────────┘
+...
 ```
+
+Cette liste présente, en ordre de similarité décroissante, les utilisateurs les plus similaires à
+l'utilisateur `u76561198075132070` en fonction de leurs recommendations. L'étape 3 produit le
+résultat suivant :
+
+```
+╒══════════════════════════════════╤═══════════════════╕
+│gameTitle                         │recommendationCount│
+╞══════════════════════════════════╪═══════════════════╡
+│"Team Fortress 2"                 │7                  │
+├──────────────────────────────────┼───────────────────┤
+│"Counter-Strike: Global Offensive"│6                  │
+├──────────────────────────────────┼───────────────────┤
+│"Terraria"                        │3                  │
+...
+```
+
+Cette liste montre les jeux les plus recommandés par les utilisateurs similaires à
+`u76561198075132070`. Les jeux avec le plus de recommandations sont présentés en premier.
 
 
 ### Recommandations basées sur le similarité entre les utilisateurs
 
-En disant qu'on a joué à Borderlands 2 et on veut trouver des jeux similairement joués, on décide d'utiliser un calcul de similarité Pearson pour en chercher, basé sur des jeux avec un similairité de total_playtime. On utilise la corrélation de Pearson pour adapter a la variabilité de playtime entre utilisateur.  
+En disant qu'on a joué à Borderlands 2 et on veut trouver des jeux similairement joués, on décide d'utiliser un calcul de similarité Pearson pour en chercher, basé sur des jeux avec un similairité de total_playtime. On utilise la corrélation de Pearson pour adapter a la variabilité de playtime entre utilisateur.
 Apres l'avoir essayé, il y avait un probleme be memoire en utlisant Borderlands 2 comme jeu de reference (avec 9524 joueurs), donc apres avoir généré une liste des jeux similaires (qui partage au moins un Genre et un Tag) avec moins de 8000 utilisateurs on a decidé d'utiliser `Ricochet` comme jeu de reference (qui a 7962 joueurs).
 
 ```
@@ -377,7 +392,7 @@ CALL {
     WITH u, p
     WITH u, p
     WHERE COUNT(p) < 20
-    MATCH (j:GameID) 
+    MATCH (j:GameID)
     WHERE j.price IS NOT NULL AND j.price > 0
     WITH percentileCont(j.price, 0.85) AS upper
     MATCH (s:Sentiment) <- [:HAS_SENTIMENT] - (j:GameID) <- [r:RECOMMENDS] - (:UserID), (y:Year) <- [:RELEASED_IN] - (j) - [:HAS_SCORE] -> (m:Metascore)
