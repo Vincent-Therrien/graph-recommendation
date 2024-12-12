@@ -2,23 +2,6 @@
     Data preprocessing script. Formats the raw JSON into compact CSV format.
 """
 
-# Add item count for each user
-#   As categotical nodes?
-
-# Add date posted, helpful
-#   As review property
-
-# From metadata:
-#   Add titles for games
-#   Add release dates. As Nodes? By year?
-#   Publisher nodes
-#   Genre nodes
-#   Sentiment nodes
-#   Tags
-#   Specs
-#   Price
-#   Metascore
-
 import json
 import ast
 
