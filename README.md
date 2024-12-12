@@ -278,18 +278,45 @@ Ici on peut faire 1 ou 2 requêtes avec le filtrage collaboratif. Par exemple, c
 
 ```
 // Select a random user
-MATCH (u:UserID)
+MATCH (user1:UserID)
 ORDER BY RAND()
 LIMIT 1
 
-// Fetch similar users
-MATCH (similarUser:UserID) - [:RECOMMENDS] -> (j:GameID) <- [:RECOMMENDS] - (u)
-WITH similarUser.id AS user, j.title AS game
-RETURN user, game
-LIMIT 5
+// Calculate a similarity score
+MATCH (user1:UserID)
+WITH user1 LIMIT 1000 // Process 1000 users at a time
+MATCH (user1) - [:RECOMMENDS] -> (game:GameID) <- [:RECOMMENDS] - (user2:UserID)
+WHERE user1 <> user2
+WITH user1, user2, COUNT(game) AS sharedGamesCount
+WHERE sharedGamesCount > 0
+WITH user1, user2, sharedGamesCount
+MATCH (user1) - [:RECOMMENDS] -> (:GameID)
+WITH user1, user2, sharedGamesCount, COUNT(*) AS totalGames1
+MATCH (user2) - [:RECOMMENDS] -> (:GameID)
+WITH user1, user2, sharedGamesCount, totalGames1, COUNT(*) AS totalGames2
+WITH user1, user2, sharedGamesCount, totalGames1, totalGames2,
+     (sharedGamesCount * 1.0) / (totalGames1 + totalGames2 - sharedGamesCount) AS similarityScore
+RETURN user1.id AS User1, user2.id AS User2, similarityScore
+ORDER BY similarityScore DESC
+LIMIT 10
+```
 
-// Fetch games liked by the similar users
-// RETURN u
+On obtient un résultat similaire à l'extrait suivant :
+
+```
+╒════════════════════╤═════════════════════════╤═══════════════════╕
+│User1               │User2                    │similarityScore    │
+╞════════════════════╪═════════════════════════╪═══════════════════╡
+│"u76561198075132070"│"uFORTHMINGUTH"          │0.6666666666666666 │
+├────────────────────┼─────────────────────────┼───────────────────┤
+│"u76561198075132070"│"u76561198122884898"     │0.5                │
+├────────────────────┼─────────────────────────┼───────────────────┤
+│"u76561198075132070"│"u76561198088785160"     │0.42857142857142855│
+├────────────────────┼─────────────────────────┼───────────────────┤
+│"u76561198075132070"│"u76561198081343863"     │0.3333333333333333 │
+├────────────────────┼─────────────────────────┼───────────────────┤
+│"u76561198075132070"│"uonce-i-was-7-years-old"│0.3333333333333333 │
+└────────────────────┴─────────────────────────┴───────────────────┘
 ```
 
 
