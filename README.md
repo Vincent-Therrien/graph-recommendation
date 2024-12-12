@@ -377,9 +377,9 @@ ORDER BY Pearson DESC LIMIT 20
 
 
 
-On a choisit d'utiliser un méthod hybrid de recommandation. On identifie un utilisateur au hasard et on calcule le quantité des jeux qu'il/elle a dans son compte Steam. Si l'utilisateur en a moins de 20, le recommendation est basée sur le contenu, en cherchant les jeux les plus populaires sorties dans les 5 dernieres années (nos données arretent en 2017).
+On a choisit d'utiliser un méthod hybrid de recommandation. On identifie un utilisateur au hasard et on calcule le quantité des jeux qu'il/elle a dans son compte Steam. Si l'utilisateur en a moins de 20, le recommendation est basée sur le contenu, en cherchant les jeux les plus populaires sorties dans les 10 dernieres années (nos données arretent en 2017).
 
-Premierement, on établi une limite de prix a la 85e percentile (plus ou moins le moyen + 1xSD), en excluant les jeux gratuits. On identifie les jeux qui ont un `Sentiment` global d'"Overwhelmingly positive" ou "Very positive" (les niveaux 3 et 4), un `Metascore` de 80+. Ensuite, on limite les resultats aux jeux qui ont un prix dans la 85e percentile, qui s'est sortie apres 2012 (donc les dernieres 5 années des données), et qui ont des recommendations positives. On organise les resultats pour montrer les 10 jeux qui ont le plus d'utilisateurs qui les `Recommend`.
+Premierement, on établi une limite de prix a la 85e percentile (plus ou moins le moyen + 1xSD), en excluant les jeux gratuits. On identifie les jeux qui ont un `Sentiment` global d'"Overwhelmingly positive" ou "Very positive" (les niveaux 3 et 4), un `Metascore` de 80+. Ensuite, on limite les resultats aux jeux qui ont un prix dans la 85e percentile, qui s'est sortie apres 2007 (donc les dernieres 10 années des données), et qui ont des recommendations positives. On organise les resultats pour trouver les 50 jeux qui ont le plus d'utilisateurs qui les `Recommend`, et on montre un selection au hasard de 10 de ces 50 jeux por qu'il aille de la variation si on montre les memes recommendations au meme utilisateur plusieurs fois.
 
 Si l'utilisateur a plus de 20 jeux...
 
@@ -387,29 +387,51 @@ Si l'utilisateur a plus de 20 jeux...
 MATCH (u:UserID)
 ORDER BY RAND()
 LIMIT 1
-MATCH u - [p:PLAYED] -> (j:GameID)
+MATCH (u) - [p:PLAYED] -> (j:GameID)
+WHERE p.playtime > 0
 CALL {
     WITH u, p
-    WITH u, p
-    WHERE COUNT(p) < 20
+    WITH u, p, COUNT(p) AS games
+    WHERE games < 20
     MATCH (j:GameID)
     WHERE j.price IS NOT NULL AND j.price > 0
     WITH percentileCont(j.price, 0.85) AS upper
     MATCH (s:Sentiment) <- [:HAS_SENTIMENT] - (j:GameID) <- [r:RECOMMENDS] - (:UserID), (y:Year) <- [:RELEASED_IN] - (j) - [:HAS_SCORE] -> (m:Metascore)
     WHERE j.title IS NOT NULL AND s.level >=3 AND m.name >= 80
     WITH j, r, y, upper
-    WHERE r.recommends = True AND j.price <= upper AND y.name > 2012
-    RETURN j.title AS most_popular, COUNT(r) AS times_recommended, y.name AS release_year, j.price AS price
-    ORDER BY times_recommended DESC LIMIT 10
+    WHERE r.recommends = True AND j.price <= upper AND y.name > 2007
+    WITH j.title AS recommendation, COUNT(r) AS times_recommended, y.name AS release_year, j.price AS price
+    ORDER BY times_recommended DESC LIMIT 50
+    RETURN recommendation
 
     UNION
 
     WITH u, p
-    WITH u, p
-    WHERE COUNT(p) >= 20
-    MATCH (similarUser:UserID) - [:RECOMMENDS] -> (j:GameID) <- [:RECOMMENDS] - (u)
-    WITH similarUser.id AS user, j.title AS game
-    RETURN user, game
-    LIMIT 5
+    WITH u, p, COUNT(p) AS games
+    WHERE games > 20
+    MATCH (user1) - [sp1:PLAYED] -> (sharedGames:GameID) <- [sp2:PLAYED] - (user2:UserID)
+    WHERE user1 <> user2 AND sp1.playtime > 0 AND sp2.playtime > 0 AND sharedGames.title IS NOT NULL
+    WITH user1, user2, COLLECT(distinct sharedGames.title) AS sharedGames, COUNT(distinct sharedGames) AS sharedGamesCount
+    MATCH (user1) - [p1:PLAYED] -> (:GameID)
+    WHERE p1.playtime > 0
+    WITH user1, user2, sharedGames, sharedGamesCount, COUNT(p1) AS games1
+    MATCH (user2) - [p2:PLAYED] -> (:GameID)
+    WHERE p2.playtime >0
+    WITH user1, user2, sharedGames, sharedGamesCount, games1, COUNT(p2) AS games2
+    WITH user1, user2, sharedGames, sharedGamesCount, games1, games2, ((sharedGamesCount*100) / ((games1 + games2) - sharedGamesCount)) AS similarityScore
+    ORDER BY similarityScore DESC
+    LIMIT 20
+    // Here we have identified the 20 most similar users
+    // We want to recommend the games they have played the most, which the user has not
+    MATCH (user2) - [p:PLAYED] -> (newGame:GameID)
+    WHERE NOT newGame.title IN sharedGames AND newGame.title IS NOT NULL AND p.playtime > 0
+    WITH newGame.title AS recommendation, AVG(p.playtime) AS mean_likeUser_playtime, SUM(p.playtime) AS total_likeUser_playtime, COUNT(distinct user2.id) AS sharedUsers, AVG(similarityScore) AS mean_similarity
+    ORDER BY sharedUsers DESC, mean_likeUser_playtime DESC LIMIT 50
+    RETURN recommendation
 }
+RETURN recommendation
+ORDER BY RAND() LIMIT 10
+
 ```
+RETURN recommendation, times_recommended, release_year, price
+RETURN recommendation, mean_likeUser_playtime, total_likeUser_playtime, sharedUsers, mean_similarity
