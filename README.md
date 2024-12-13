@@ -186,7 +186,7 @@ Maintenant que les données sont nettoyées et importées, et le DBMS est popul�
 
 ### Recommandations hybrides
 
-On a choisit d'utiliser un méthod hybrid de recommandation. On identifie un utilisateur au hasard et on calcule le quantité des jeux qu'il/elle a joué. Si l'utilisateur en a joué moins de 20, le recommendation est basée sur le contenu, en cherchant les jeux les plus populaires sorties dans les 10 dernieres années (nos données arretent en 2017).
+On a choisit d'utiliser un méthod hybrid de recommandation. On identifie un utilisateur au hasard et on calcule le quantité des jeux qu'il/elle a joué. Si l'utilisateur en a joué moins de 20, la recommendation est basée sur le contenu, en cherchant les jeux les plus populaires sorties dans les 10 dernieres années (nos données arretent en 2017). Si l'utilisateur a joué 20 ou plus jeux, la recommendation est basée sur le filtrage collaboratif, en cherchant les jeux les plus joués par les utilisateurs similaires.
 
 Le système de recommandation hybride se divise en deux approches selon la quantité de jeux auxquels les joueurs ont joué :
 
@@ -234,7 +234,7 @@ CALL {
 
     WITH u, p
     WITH u, p, COUNT(p) AS games
-    WHERE games > 20
+    WHERE games >= 20
     MATCH (user1) - [sp1:PLAYED] -> (sharedGames:GameID) <- [sp2:PLAYED] - (user2:UserID)
     WHERE user1 <> user2 AND sp1.playtime > 0 AND sp2.playtime > 0 AND sharedGames.title IS NOT NULL
     WITH user1, user2, COLLECT(distinct sharedGames.title) AS sharedGames, COUNT(distinct sharedGames) AS sharedGamesCount
