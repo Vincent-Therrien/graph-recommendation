@@ -188,7 +188,6 @@ Maintenant que les données sont nettoyées et importées, et le DBMS est popul�
 
 ### Recommandations hybrides
 
-<<<<<<< HEAD
 On a choisit d'utiliser un méthod hybrid de recommandation. On identifie un utilisateur au hasard et on calcule le quantité des jeux qu'il/elle a joué. 
 
 ```
@@ -209,9 +208,6 @@ Le code ci-dessus rapporte un résultat semblant au suivant:
 ```
 
 Si l'utilisateur en a joué moins de 20, on fera une recommendation basée sur le contenu, en cherchant les jeux les plus populaires sorties dans les 10 dernieres années (nos données arretent en 2017). Si l'utilisateur a joué 20 ou plus jeux, la recommendation sera basée sur le filtrage collaboratif, en cherchant les jeux les plus joués par les utilisateurs similaires.
-=======
-On a choisit d'utiliser une méthode hybride de recommandation. On identifie un utilisateur au hasard et on calcule le quantité des jeux auxquels ils ont joué. Si l'utilisateur a joué à moins de 20 jeux, la recommendation est basée sur le contenu, en cherchant les jeux les plus populaires sorties dans les 10 dernières années (nos données arrêtent en 2017). Si l'utilisateur a joué à 20 jeux ou plus, la recommendation est basée sur le filtrage collaboratif, en cherchant les jeux les plus joués par les utilisateurs similaires.
->>>>>>> f4e1cc4aa6c53bdb494a41bea5cffb61c856fdf1
 
 Le système de recommandation hybride se divise en deux approches selon la quantité de jeux auxquels les joueurs ont joué :
 
@@ -222,21 +218,6 @@ Le système de recommandation hybride se divise en deux approches selon la quant
 3. Limiter les résultats aux jeux qui ont un prix dans la 85e percentile, qui s'est sortie apres 2007 (donc les dernières 10 années des données), et qui ont des recommendations positives.
 4. Organiser les résultats pour trouver les 50 jeux qui ont le plus d'utilisateurs qui les `Recommend`, et on montre un selection au hasard de 10 de ces 50 jeux pour qu'ils aillent de la variation si on montre les mêmes recommendations au même utilisateur plusieurs fois.
 
-<<<<<<< HEAD
-=======
-
-#### Approche 2 : plus grande quantité de jeux (20 ou plus)
-
-Le filtrage collaboratif permet de sélectionner des jeux avec le potentiel de plaire à des
-utilisateurs qui n'y ont jamais joué. Le code effectue les opérations suivantes :
-
-1. Dresser une liste des 20 utilisateurs les plus similaires au joueur sélectionné à l'étape 1 en utilisant
-   l'indice de Jaccard. Les utilisateurs qui ont joué au plus de jeux en commun sont plus similaires.
-2. Générer une liste des 50 jeux auxquels les utilisateurs similaires ont joué les plus, mais auquel
-   l'utilisateur sélectionné à l'étape 1 n'a jamais joué. Cette liste est organisé premièrement par quantité des joueurs en commun, ensuite par temps moyen joué.
-3. Montrer encore un selection au hasard de 10 de ces 50 jeux.
-
->>>>>>> f4e1cc4aa6c53bdb494a41bea5cffb61c856fdf1
 ```
 MATCH (j:GameID)
 WHERE j.price IS NOT NULL AND j.price > 0
@@ -315,8 +296,4 @@ Avec le **filtrage collaboratif**, on obtient les résultats semblants aux suiva
 ├───────────────────────┼─────────────┼──────────────┼───────────┼───────────────┤
 ```
 
-<<<<<<< HEAD
 Chaque approche utilise les données les plus pertinentes pour proposer des jeux (le contenu s'il n'y a pas assez de recommandations et le temps joué s'il y en a suffisament).
-=======
-Chaque approche utilise les données les plus pertinentes pour proposer des jeux (le contenu s'il n'y a pas assez de recommandations et les recommandations s'il y en a suffisamment).
->>>>>>> f4e1cc4aa6c53bdb494a41bea5cffb61c856fdf1
