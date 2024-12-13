@@ -16,7 +16,7 @@ L'ensemble de données choisi pour ce projet est le `Steam Video Game and Bundle
 
 Le jeux de données contient un fichier de commentaires des utilisateurs, un fichier d'objets (des jeux) détenus par les utilisateurs, et un fichier des métadonnées des jeux.
 
-Dans un dossier vide, téléchargez les fichiers avec `wget` et décompressez-les avec `gunzip`, comme le montre la cellule suivante :
+Dans un dossier vide, mettez le fichier `preprocess.py`, téléchargez les fichiers suivants avec `wget` et décompressez-les avec `gunzip`, comme le montre la cellule suivante :
 
 ```
 # `Version 1: Review Data`
@@ -147,22 +147,6 @@ SET j.title=row.title, j.price=toFloat(row.price), j.release_date=row.release
 WITH j, row WHERE row.release IS NOT NULL
 MERGE (y:Year {name:toInteger(substring((trim(row.release)),0,4))})
 MERGE (j) - [r:RELEASED_IN] -> (y)
-WITH j, row WHERE row.publisher IS NOT NULL
-UNWIND split(row.publisher, ',') AS publisherSimple
-MERGE (p:Publisher {name:publisherSimple})
-MERGE (j) - [:PUBLISHED_BY] -> (p)
-WITH j, row WHERE row.genres IS NOT NULL
-UNWIND split(row.genres, ',') AS genre
-MERGE (g:Genre {name:genre})
-MERGE (j) - [:HAS_GENRE] -> (g)
-WITH j, row WHERE row.tags IS NOT NULL
-UNWIND split(row.tags, ',') AS tag
-MERGE (t:Tag {name:tag})
-MERGE (j) - [:TAGGED_AS] -> (t)
-WITH j, row WHERE row.specs IS NOT NULL
-UNWIND split(row.specs, ',') AS spec
-MERGE (sp:Spec {name:spec})
-MERGE (j) - [:HAS_SPECIFICATION] -> (sp)
 WITH j, row WHERE row.sentiment IS NOT NULL
 MERGE (se:Sentiment {name:row.sentiment})
 MERGE (j) - [:HAS_SENTIMENT] -> (se)
@@ -200,188 +184,30 @@ SET s.level = category
 
 Maintenant que les données sont nettoyées et importées, et le DBMS est populée des relations, on peut générer des recommandations, selon différents critères.
 
+### Recommandations hybrides
 
-### Recommandations basées sur le contenu
+On a choisit d'utiliser un méthod hybrid de recommandation. On identifie un utilisateur au hasard et on calcule le quantité des jeux qu'il/elle a joué. Si l'utilisateur en a joué moins de 20, le recommendation est basée sur le contenu, en cherchant les jeux les plus populaires sorties dans les 10 dernieres années (nos données arretent en 2017).
 
-Mettons qu'on soit un nouveau utilisateur, on voudrait trouver lequels jeux sont les plus aimés. Ici on choisit les jeux qui ont un `Sentiment` global d'"Overwhelmingly positive" ou "Very positive" (les niveaux 3 et 4), un `Metascore` de 80+, et qui ont le plus d'utilisateurs qui les `Recommend`:
+Le système de recommandation hybride se divise en deux approches selon la quantité de jeux auxquels les joueurs ont joué :
 
-```
-MATCH (s:Sentiment) <- [:HAS_SENTIMENT] - (j:GameID) <- [r:RECOMMENDS] - (u:UserID), (y:Year) <- [:RELEASED_IN] - (j) - [:HAS_SCORE] -> (m:Metascore)
-WHERE j.title IS NOT NULL AND s.level >=3 AND m.name >= 80
-WITH j, r
-WHERE r.recommends = True AND j.price < 80 AND y.name > 2012
-RETURN j.title AS most_popular, COUNT(*) AS times_rated
-ORDER BY times_rated DESC LIMIT 10
-```
-Ce requête nous retourne la liste des jeux suivante:
+#### Approche hybride 1 : faible quantité de jeux (moins de 20)
 
-│most_popular                      │times_rated│
-│"Team Fortress 2"                 │3611       │
-│"Counter-Strike: Global Offensive"│3475       │
-│"Left 4 Dead 2"                   │731        │
-│"Terraria"                        │723        │
-│"Borderlands 2"                   │548        │
-│"Portal 2"                        │371        │
-│"Sid Meier's Civilization® V"     │332        │
-│"Starbound"                       │332        │
-│"PlanetSide 2"                    │330        │
-│"Rocket League®"                  │260        │
-
-On reconnait le jeu `Portal 2`, et on verifie qu'il est sortie en 2011:
-
-```
-match (j:GameID {title:"Portal 2"})
-RETURN j
-```
-
-On veut donc trouver des jeux similaires qui sont sorties plus récemment. On commence par chercher les jeux qui partagent au moins un `Genre` ET un `Tag` avec Portal 2, et on limite la recherche aux jeux sorties après 2011 (avec cette condition on est confiant que notre recherche ne retournera pas `Portal 2`). Il y a beaucoup plus des Tags que des Genres, donc on utilise le quantité des Tags en commun comme indice de similarité. Notre recherche avec les deux conditions peut générer des Tags en duplicats, donc on COLLECT que les Tags DISTINCT
-
-```
-MATCH (new:GameID) - [:HAS_GENRE] -> (g:Genre) <- [:HAS_GENRE] - (j:GameID {title:"Portal 2"}) - [:TAGGED_AS] -> (t:Tag) <- [:TAGGED_AS] - (new),  (new) - [:RELEASED_IN] -> (y:Year)
-WHERE y.name > 2011
-WITH new.title AS recommendation, y.name AS year, COLLECT(DISTINCT t.name) AS tags, COUNT(DISTINCT t.name) AS shared_tags
-RETURN recommendation, year, shared_tags, tags
-ORDER BY shared_tags DESC, year DESC LIMIT 20
-```
-
-Ce requête nous retourne la liste des jeux suivante (sans la colonne 'tags' pour lisibilité) :
-
-│recommendation                                     │year│shared_tags│
-│"Portal Stories: Mel"                              │2015│15         │
-│"Thinking with Time Machine"                       │2014│15         │
-│"Borderlands: The Pre-Sequel"                      │2014│14         │
-│"Polarity"                                         │2014│14         │
-│"Aperture Tag: The Paint Gun Testing Initiative"   │2014│14         │
-│"LEGO® STAR WARS™: The Force Awakens"              │2016│13         │
-│"Who's Your Daddy"                                 │2015│12         │
-│"Sanctum 2"                                        │2013│12         │
-│"Half Dead"                                        │2016│11         │
-│"Battleborn"                                       │2016│11         │
-│"Saints Row: Gat out of Hell"                      │2015│11         │
-│"LEGO® The Hobbit™"                                │2014│11         │
-│"BattleBlock Theater®"                             │2014│11         │
-│"Only If"                                          │2014│11         │
-│"Tom Clancy’s Splinter Cell Blacklist"             │2013│11         │
-│"Resident Evil Revelations / Biohazard Revelations"│2013│11         │
-│"Interstellar Marines"                             │2013│11         │
-│"Borderlands 2"                                    │2012│11         │
-│"Rocketbirds: Hardboiled Chicken"                  │2012│11         │
-│"Natural Selection 2"                              │2012│11         │
+1. Établir une limite de prix a la 85e percentile (plus ou moins le moyen + 1xSD), en excluant les jeux gratuits.
+2. Identifier les jeux qui ont un `Sentiment` global d'"Overwhelmingly positive" ou "Very positive" (les niveaux 3 et 4), un `Metascore` de 80+.
+3. Limiter les resultats aux jeux qui ont un prix dans la 85e percentile, qui s'est sortie apres 2007 (donc les dernieres 10 années des données), et qui ont des recommendations positives.
+4. Organiser les résultats pour trouver les 50 jeux qui ont le plus d'utilisateurs qui les `Recommend`, et on montre un selection au hasard de 10 de ces 50 jeux pour qu'ils aillent de la variation si on montre les mêmes recommendations au même utilisateur plusieurs fois.
 
 
-D'un premier coup, on voit que `Borderlands 2` à été trouvé par nos deux recherches, donc on peut imaginer que c'est un bon choix a essayer premièrement.
-
-
-### Recommandations par filtrage collaboratif
+#### Approche hybride 2 : plus grande quantité de jeux (20 ou plus)
 
 Le filtrage collaboratif permet de sélectionner des jeux avec le potentiel de plaire à des
 utilisateurs qui n'y ont jamais joué. Le code effectue les opérations suivantes :
 
-1. Sélectionner un joueur
-2. Dresser une liste des utilisateurs similaires au joueur sélectionné à l'étape 1 en utilisant
-   l'indice de Jaccard. Les utilisateurs qui ont plus de jeux en commun (par exemple, qui
-   recommandent des jeux similaires) sont plus similaires.
-3. Générer une liste des jeux auxquels les utilisateurs similaires ont joué, mais auquel
-   l'utilisateur sélectionné à l'étape 1 n'a jamais joué.
-4. Ordonner les jeux sélectionnés à l'étape 3 en utilisant une métrique liée à la qualité (par
-   exemple, le temps de jeu ou les évaluations) pour suggérer les meilleurs jeux.
-
-
-```
-// Étape 1 : Choisir un utilisateur aléatoirement.
-MATCH (user1:UserID)
-ORDER BY RAND()
-LIMIT 1
-
-// Étape 2 : Calculer la similarité entre les joueurs.
-MATCH (user1:UserID)
-WITH user1 LIMIT 1000 // Process 1000 users at a time
-MATCH (user1) - [:RECOMMENDS] -> (game:GameID) <- [:RECOMMENDS] - (user2:UserID)
-WHERE user1 <> user2
-WITH user1, user2, COUNT(game) AS sharedGamesCount
-WHERE sharedGamesCount > 0
-WITH user1, user2, sharedGamesCount
-MATCH (user1) - [:RECOMMENDS] -> (:GameID)
-WITH user1, user2, sharedGamesCount, COUNT(*) AS totalGames1
-MATCH (user2) - [:RECOMMENDS] -> (:GameID)
-WITH user1, user2, sharedGamesCount, totalGames1, COUNT(*) AS totalGames2
-WITH user1, user2, sharedGamesCount, totalGames1, totalGames2,
-     (sharedGamesCount * 1.0) / (totalGames1 + totalGames2 - sharedGamesCount) AS similarityScore
-
-// Étape 3 : Identifier les jeux.
-ORDER BY similarityScore DESC
-LIMIT 100
-MATCH (user2)-[:RECOMMENDS]->(recommendedGame:GameID)
-WHERE NOT (user1)-[:RECOMMENDS]->(recommendedGame)
-WITH recommendedGame, COUNT(user2) AS recommendationCount
-ORDER BY recommendationCount DESC
-RETURN recommendedGame.title AS gameTitle, recommendationCount
-LIMIT 10
-```
-
-L'étape 2 produit le résultat suivants :
-
-```
-╒════════════════════╤═════════════════════════╤═══════════════════╕
-│User1               │User2                    │similarityScore    │
-╞════════════════════╪═════════════════════════╪═══════════════════╡
-│"u76561198075132070"│"uFORTHMINGUTH"          │0.6666666666666666 │
-├────────────────────┼─────────────────────────┼───────────────────┤
-│"u76561198075132070"│"u76561198122884898"     │0.5                │
-├────────────────────┼─────────────────────────┼───────────────────┤
-│"u76561198075132070"│"u76561198088785160"     │0.42857142857142855│
-├────────────────────┼─────────────────────────┼───────────────────┤
-...
-```
-
-Cette liste présente, en ordre de similarité décroissante, les utilisateurs les plus similaires à
-l'utilisateur `u76561198075132070` en fonction de leurs recommendations. L'étape 3 produit le
-résultat suivant :
-
-```
-╒══════════════════════════════════╤═══════════════════╕
-│gameTitle                         │recommendationCount│
-╞══════════════════════════════════╪═══════════════════╡
-│"Team Fortress 2"                 │7                  │
-├──────────────────────────────────┼───────────────────┤
-│"Counter-Strike: Global Offensive"│6                  │
-├──────────────────────────────────┼───────────────────┤
-│"Terraria"                        │3                  │
-...
-```
-
-Cette liste montre les jeux les plus recommandés par les utilisateurs similaires à
-`u76561198075132070`. Les jeux avec le plus de recommandations sont présentés en premier.
-
-
-### Recommandations basées sur le similarité entre les utilisateurs
-
-En disant qu'on a joué à Borderlands 2 et on veut trouver des jeux similairement joués, on décide d'utiliser un calcul de similarité Pearson pour en chercher, basé sur des jeux avec un similairité de total_playtime. On utilise la corrélation de Pearson pour adapter a la variabilité de playtime entre utilisateur.
-Apres l'avoir essayé, il y avait un probleme be memoire en utlisant Borderlands 2 comme jeu de reference (avec 9524 joueurs), donc apres avoir généré une liste des jeux similaires (qui partage au moins un Genre et un Tag) avec moins de 8000 utilisateurs on a decidé d'utiliser `Ricochet` comme jeu de reference (qui a 7962 joueurs).
-
-```
-MATCH (BL2:GameID {title:"Ricochet"}) <- [p:PLAYED] - (u:UserID)
-WITH (BL2), avg(p.playtime) AS BL2_mean
-MATCH (BL2) <- [p1:PLAYED] - (u:UserID) - [p2:PLAYED] -> (new:GameID)
-WHERE new.title IS NOT NULL
-WITH BL2, BL2_mean, new, COLLECT({p1:p1, p2:p2}) AS playtime WHERE size(playtime) > 50
-MATCH (new) <- [p:PLAYED] - (u:UserID)
-WITH BL2, BL2_mean, new, avg(p.playtime) AS new_mean, playtime
-UNWIND playtime AS p
-WITH sum ((p.p1.playtime - BL2_mean) * (p.p2.playtime - new_mean)) AS numerator,
-sqrt(sum((p.p1.playtime - BL2_mean)^2) * sum((p.p2.playtime - new_mean)^2)) AS denominator,
-BL2, new WHERE denominator <> 0
-RETURN BL2.title, new.title, numerator/denominator AS Pearson
-ORDER BY Pearson DESC LIMIT 20
-```
-
-
-
-On a choisit d'utiliser un méthod hybrid de recommandation. On identifie un utilisateur au hasard et on calcule le quantité des jeux qu'il/elle a dans son compte Steam. Si l'utilisateur en a moins de 20, le recommendation est basée sur le contenu, en cherchant les jeux les plus populaires sorties dans les 10 dernieres années (nos données arretent en 2017).
-
-Premierement, on établi une limite de prix a la 85e percentile (plus ou moins le moyen + 1xSD), en excluant les jeux gratuits. On identifie les jeux qui ont un `Sentiment` global d'"Overwhelmingly positive" ou "Very positive" (les niveaux 3 et 4), un `Metascore` de 80+. Ensuite, on limite les resultats aux jeux qui ont un prix dans la 85e percentile, qui s'est sortie apres 2007 (donc les dernieres 10 années des données), et qui ont des recommendations positives. On organise les resultats pour trouver les 50 jeux qui ont le plus d'utilisateurs qui les `Recommend`, et on montre un selection au hasard de 10 de ces 50 jeux por qu'il aille de la variation si on montre les memes recommendations au meme utilisateur plusieurs fois.
-
-Si l'utilisateur a plus de 20 jeux...
+1. Dresser une liste des 20 utilisateurs les plus similaires au joueur sélectionné à l'étape 1 en utilisant
+   l'indice de Jaccard. Les utilisateurs qui ont joué au plus de jeux en commun sont plus similaires.
+2. Générer une liste des 50 jeux auxquels les utilisateurs similaires ont joué les plus, mais auquel
+   l'utilisateur sélectionné à l'étape 1 n'a jamais joué. Cette liste est organisé premièrement par quantité des joueurs en commun, ensuite par temps moyen joué. 
+3. Montrer encore un selection au hasard de 10 de ces 50 jeux.
 
 ```
 MATCH (u:UserID)
@@ -416,22 +242,53 @@ CALL {
     WHERE p1.playtime > 0
     WITH user1, user2, sharedGames, sharedGamesCount, COUNT(p1) AS games1
     MATCH (user2) - [p2:PLAYED] -> (:GameID)
-    WHERE p2.playtime >0
+    WHERE p2.playtime > 0
     WITH user1, user2, sharedGames, sharedGamesCount, games1, COUNT(p2) AS games2
     WITH user1, user2, sharedGames, sharedGamesCount, games1, games2, ((sharedGamesCount*100) / ((games1 + games2) - sharedGamesCount)) AS similarityScore
     ORDER BY similarityScore DESC
     LIMIT 20
-    // Here we have identified the 20 most similar users
-    // We want to recommend the games they have played the most, which the user has not
     MATCH (user2) - [p:PLAYED] -> (newGame:GameID)
     WHERE NOT newGame.title IN sharedGames AND newGame.title IS NOT NULL AND p.playtime > 0
     WITH newGame.title AS recommendation, AVG(p.playtime) AS mean_likeUser_playtime, SUM(p.playtime) AS total_likeUser_playtime, COUNT(distinct user2.id) AS sharedUsers, AVG(similarityScore) AS mean_similarity
     ORDER BY sharedUsers DESC, mean_likeUser_playtime DESC LIMIT 50
     RETURN recommendation
 }
-RETURN recommendation
+RETURN u.id AS user, recommendation, COUNT(p) AS games_played
 ORDER BY RAND() LIMIT 10
+```
+
+Le code ci-dessous rapporte le résultat de l'approche hybride qui combine les deux cas de figure. Due a l'utilisation de `CALL{... UNION ...}` pour générer les résultats qui dépendent sur l'information du joueur au hasard, et que les sorties des deux approches sont différentes, on peut sortir que la colonne `recommendation` et les information sur le joueur sélectionné. Pour mettre en lumière les détails des résultats des deux approches, nous rapportons leurs sorties individuellement avec toutes leurs colonnes.
+
+Avec l'approche **basée sur le contenu**, on obtient les résultats semblants aux suivants :
 
 ```
-RETURN recommendation, times_recommended, release_year, price
-RETURN recommendation, mean_likeUser_playtime, total_likeUser_playtime, sharedUsers, mean_similarity
+╒══════════════════════════════════╤═════════════════╤════════════╤═════╕
+│recommendation                    │times_recommended│release_year│price│
+╞══════════════════════════════════╪═════════════════╪════════════╪═════╡
+│"Counter-Strike: Global Offensive"│3475             │2012        │14.99│
+├──────────────────────────────────┼─────────────────┼────────────┼─────┤
+│"Left 4 Dead 2"                   │731              │2009        │19.99│
+├──────────────────────────────────┼─────────────────┼────────────┼─────┤
+│"Terraria"                        │723              │2011        │9.99 │
+├──────────────────────────────────┼─────────────────┼────────────┼─────┤
+│"Borderlands 2"                   │548              │2012        │19.99│
+├──────────────────────────────────┼─────────────────┼────────────┼─────┤
+```
+
+Avec le **filtrage collaboratif**, on obtient les résultats semblants aux suivants :
+
+```
+╒══════════════════════╤═════════════╤══════════════╤═══════════╤═══════════════╕
+│recommendation        │mean playtime│total playtime│sharedUsers│mean similarity│
+╞══════════════════════╪═════════════╪══════════════╪═══════════╪═══════════════╡
+│"The Elder Scrolls IV"│837.312500000│13397         │16         │26.624999999999│
+├──────────────────────┼─────────────┼──────────────┼───────────┼───────────────┤
+│"Batman: Arkham Asylu"│692.2        │10383         │15         │26.599999999999│
+├──────────────────────┼─────────────┼──────────────┼───────────┼───────────────┤
+│"Goat Simulator"      │337.4        │5061          │15         │26.599999999999│
+├──────────────────────┼─────────────┼──────────────┼───────────┼───────────────┤
+│"Batman: Arkham City "│703.428571428│9848          │14         │26.714285714285│
+├──────────────────────┼─────────────┼──────────────┼───────────┼───────────────┤
+```
+
+Chaque approche utilise les données les plus pertinentes pour proposer des jeux (le contenu s'il n'y a pas assez de recommandations et les recomandations s'il y en a suffisament).
