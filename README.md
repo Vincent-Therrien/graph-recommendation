@@ -9,7 +9,7 @@ Système de recommandation de données basé sur des graphes.
 
 ## Données
 
-L'ensemble de données choisi pour ce projet est le `Steam Video Game and Bundle Data` accessible à l'adresse https://cseweb.ucsd.edu/~jmcauley/datasets.html#steam_data. Nous utilisons la version 1 (et les métadonnées de la version 2). Ces données contiennent des commentaires de joueurs australiens sur des jeux vidéos du distributeur Steam.
+L'ensemble de données choisi pour ce projet est le `Steam Video Game and Bundle Data` accessible à l'adresse https://cseweb.ucsd.edu/~jmcauley/datasets.html#steam_data. Ces données contiennent des commentaires de joueurs australiens sur des jeux vidéos du distributeur Steam.
 
 
 ### Installation des données
@@ -100,7 +100,7 @@ python3 preprocess.py  # Linux
 py preprocess.py  # Windows
 ```
 
-Le script `preprocess.py` génère cinq fichiers CSV à partir des données originale :
+Le script `preprocess.py` génère cinq fichiers CSV à partir des données originales :
 
 - `user_nodes.csv` : Noeuds d'identifiants de tous les utilisateurs.
 - `item_nodes.csv` : Noeuds d'identifiants de tous les items (c-à-d des jeux).
@@ -133,9 +133,11 @@ base de données `Neo4j`. Il faut effectuer les étapes suivantes :
 - Vérifier dans le fichier `conf/neo4j.conf` (situé dans le répertoire de la DBMS) que la ligne 22
   (`<server.directories.import=import>`) n'est pas masquée.
 - Arrêter la DBMS dans `Neo4j desktop` et lancer le commande suivante dans le terminal `Neo4j` dans le directoire de la DBMS :
+
 ```
 bin\neo4j-admin database import full --nodes=import/user_nodes.csv --nodes=import/item_nodes.csv --relationships=import/review_relations.csv --relationships=import/item_relations.csv --overwrite-destination --skip-bad-relationships --skip-duplicate-nodes
 ```
+
 - Relancer la DBMS. Il est maintenant possible d'interagir avec le graphe dans `Neo4j browser`.
 - Importer les métadonnées et créer les relations correspondantes en utilisant le code suivante dans le `Neo4j browser`:
 
@@ -155,7 +157,7 @@ MERGE (m:Metascore {name:toInteger(row.metascore)})
 MERGE (j) - [:HAS_SCORE] -> (m)
 ```
 
-On termine l'importation par modifier quelques propriétés pour qu'elles soient plus conviviales d'utilisation dans les requêtes :
+On termine l'importation en modifiant quelques propriétés pour qu'elles soient plus conviviales d'utilisation dans les requêtes :
 
 ```
 MATCH (j:GameID) <- [r:RECOMMENDS] - (u:UserID)
@@ -182,23 +184,23 @@ SET s.level = category
 
 ## Recommandations
 
-Maintenant que les données sont nettoyées et importées, et le DBMS est populée des relations, on peut générer des recommandations, selon différents critères.
+Maintenant que les données sont nettoyées et importées, et le DBMS est populé par des relations, on peut générer des recommandations selon différents critères.
 
 ### Recommandations hybrides
 
-On a choisit d'utiliser un méthod hybrid de recommandation. On identifie un utilisateur au hasard et on calcule le quantité des jeux qu'il/elle a joué. Si l'utilisateur en a joué moins de 20, la recommendation est basée sur le contenu, en cherchant les jeux les plus populaires sorties dans les 10 dernieres années (nos données arretent en 2017). Si l'utilisateur a joué 20 ou plus jeux, la recommendation est basée sur le filtrage collaboratif, en cherchant les jeux les plus joués par les utilisateurs similaires.
+On a choisit d'utiliser une méthode hybride de recommandation. On identifie un utilisateur au hasard et on calcule le quantité des jeux auxquels ils ont joué. Si l'utilisateur a joué à moins de 20 jeux, la recommendation est basée sur le contenu, en cherchant les jeux les plus populaires sorties dans les 10 dernières années (nos données arrêtent en 2017). Si l'utilisateur a joué à 20 jeux ou plus, la recommendation est basée sur le filtrage collaboratif, en cherchant les jeux les plus joués par les utilisateurs similaires.
 
 Le système de recommandation hybride se divise en deux approches selon la quantité de jeux auxquels les joueurs ont joué :
 
-#### Approche hybride 1 : faible quantité de jeux (moins de 20)
+#### Approche 1 : faible quantité de jeux (moins de 20)
 
-1. Établir une limite de prix a la 85e percentile (plus ou moins le moyen + 1xSD), en excluant les jeux gratuits.
-2. Identifier les jeux qui ont un `Sentiment` global d'"Overwhelmingly positive" ou "Very positive" (les niveaux 3 et 4), un `Metascore` de 80+.
-3. Limiter les resultats aux jeux qui ont un prix dans la 85e percentile, qui s'est sortie apres 2007 (donc les dernieres 10 années des données), et qui ont des recommendations positives.
+1. Établir une limite de prix a la 85e percentile (plus ou moins le moyen + 1 écart type), en excluant les jeux gratuits.
+2. Identifier les jeux qui ont un `Sentiment` global d'"Overwhelmingly positive" ou "Very positive" (les niveaux 3 et 4), un `Metascore` de 80 ou plus.
+3. Limiter les résultats aux jeux qui ont un prix dans la 85e percentile, qui s'est sortie apres 2007 (donc les dernières 10 années des données), et qui ont des recommendations positives.
 4. Organiser les résultats pour trouver les 50 jeux qui ont le plus d'utilisateurs qui les `Recommend`, et on montre un selection au hasard de 10 de ces 50 jeux pour qu'ils aillent de la variation si on montre les mêmes recommendations au même utilisateur plusieurs fois.
 
 
-#### Approche hybride 2 : plus grande quantité de jeux (20 ou plus)
+#### Approche 2 : plus grande quantité de jeux (20 ou plus)
 
 Le filtrage collaboratif permet de sélectionner des jeux avec le potentiel de plaire à des
 utilisateurs qui n'y ont jamais joué. Le code effectue les opérations suivantes :
@@ -206,7 +208,7 @@ utilisateurs qui n'y ont jamais joué. Le code effectue les opérations suivante
 1. Dresser une liste des 20 utilisateurs les plus similaires au joueur sélectionné à l'étape 1 en utilisant
    l'indice de Jaccard. Les utilisateurs qui ont joué au plus de jeux en commun sont plus similaires.
 2. Générer une liste des 50 jeux auxquels les utilisateurs similaires ont joué les plus, mais auquel
-   l'utilisateur sélectionné à l'étape 1 n'a jamais joué. Cette liste est organisé premièrement par quantité des joueurs en commun, ensuite par temps moyen joué. 
+   l'utilisateur sélectionné à l'étape 1 n'a jamais joué. Cette liste est organisé premièrement par quantité des joueurs en commun, ensuite par temps moyen joué.
 3. Montrer encore un selection au hasard de 10 de ces 50 jeux.
 
 ```
@@ -291,4 +293,4 @@ Avec le **filtrage collaboratif**, on obtient les résultats semblants aux suiva
 ├──────────────────────┼─────────────┼──────────────┼───────────┼───────────────┤
 ```
 
-Chaque approche utilise les données les plus pertinentes pour proposer des jeux (le contenu s'il n'y a pas assez de recommandations et les recomandations s'il y en a suffisament).
+Chaque approche utilise les données les plus pertinentes pour proposer des jeux (le contenu s'il n'y a pas assez de recommandations et les recommandations s'il y en a suffisamment).
